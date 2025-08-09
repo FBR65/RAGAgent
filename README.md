@@ -542,26 +542,8 @@ spec:
 - **Horizontales Scaling**: Unterstützung durch Kubernetes
 - **Verteilte Verarbeitung**: Mehrere Worker-Knoten
 - **Load Balancing**: Automatische Verteilung der Last
-- **Caching**: Redis für häufige Anfragen
+- **Caching**: lokaler Cache für häufige Anfragen
 
-## Contributing
-
-Wir freuen uns über Beiträge! Bitte lesen Sie unsere [Contributing Guidelines](CONTRIBUTING.md) für mehr Informationen.
-
-### Entwicklungsschritte
-
-1. Fork das Repository
-2. Erstellen Sie einen Feature-Branch (`git checkout -b feature/amazing-feature`)
-3. Commiten Sie Ihre Änderungen (`git commit -m 'Add amazing feature'`)
-4. Pushen Sie zum Branch (`git push origin feature/amazing-feature`)
-5. Öffnen Sie einen Pull Request
-
-### Code-Richtlinien
-
-- Verwenden Sie Black für Code-Formatierung
-- Folgen Sie PEP 8 für Style-Guides
-- Schreiben Sie Tests für neue Features
-- Dokumentieren Sie öffentliche APIs
 
 ## Lizenz
 
@@ -581,29 +563,7 @@ Dieses Projekt ist unter der AGPLv3-Lizenz lizenziert - siehe die [LICENSE](LICE
 - [Ollama](https://ollama.ai/) für lokale Modelle
 - [NLTK](https://www.nltk.org/) für natürliche Sprachverarbeitung
 
-## Kontakt
-
-- **GitHub Issues**: [GitHub Issues](https://github.com/ihres/ragagent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ihres/ragagent/discussions)
-- **Email**: team@ragagent.com
-
-## Roadmap
-
-### Kurzfristig (Q1 2024)
-- [ ] Web-Interface verbessern
-- [ ] Mehr KI-Provider unterstützen
-- [ ] Performance-Optimierungen
-
-### Mittelfristig (Q2 2024)
-- [ ] Mobile Apps
-- [ ] Enterprise-Funktionen
-- [ ] Erweiterte OCR-Unterstützung
-
-### Langfristig (Q3 2024)
-- [ ] Multi-Modalität (Bilder, Videos)
-- [ ] Echtzeit-Zusammenarbeit
-- [ ] KI-generierte Dokumente
 
 ---
 
-**Made with ❤️ by the Agentic RAG Team**
+**Made with ❤️ by FBR65**
