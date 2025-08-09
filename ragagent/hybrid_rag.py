@@ -20,7 +20,7 @@ from .pipeline import AgenticRAGPipeline, ProcessingRequest, ProcessingResponse
 from .models import Chunk, AnswerWithCitations, VerificationResult
 from .utils import CacheManager, MemoryCache, cache_results
 from .config import get_config
-from .ollama_client import OllamaEmbeddingClient
+from .unified_client import ClientFactory
 
 logger = logging.getLogger(__name__)
 
@@ -56,25 +56,56 @@ class HybridSearchResult:
 
 
 class BGEEmbedder:
-    """BGE-M3 embedding client using Ollama"""
+    """BGE-M3 embedding client supporting both Ollama and OpenAI-compatible endpoints"""
 
     def __init__(
         self,
-        model_name: str = "bge-m3:latest",
-        base_url: str = "http://localhost:11434",
+        model_name: str = "text-embedding-3-small",
+        base_url: str = "https://api.openai.com/v1",
+        api_key: str = None,
+        use_ollama: bool = False,
     ):
         self.model_name = model_name
         self.base_url = base_url
-        self.client = OllamaEmbeddingClient(model_name, base_url)
+        self.api_key = api_key
+        self.use_ollama = use_ollama
         self.logger = logging.getLogger(self.__class__.__name__)
+
+        if use_ollama:
+            self.client = ClientFactory.create_ollama_client(
+                base_url=base_url, model=model_name
+            )
+        else:
+            # Use OpenAI-compatible client
+            self.client = ClientFactory.create_openai_client(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+            )
 
     def embed(self, text: str) -> List[float]:
         """Embed a single text"""
-        return self.client.embed(text)
+        if self.use_ollama:
+            return self.client.embed(text)
+        else:
+            # Use OpenAI-compatible embedding
+            response = self.client.embeddings.create(
+                model=self.model_name,
+                input=text,
+            )
+            return response.data[0].embedding
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Embed multiple texts"""
-        return self.client.embed_batch(texts)
+        if self.use_ollama:
+            return self.client.embed_batch(texts)
+        else:
+            # Use OpenAI-compatible batch embedding
+            response = self.client.embeddings.create(
+                model=self.model_name,
+                input=texts,
+            )
+            return [item.embedding for item in response.data]
 
 
 class QdrantVectorDB:
@@ -324,7 +355,7 @@ class HybridRAGSystem:
         self.logger.info(f"Indexing document with {len(chunks)} chunks")
         self.vector_search.index_chunks(chunks)
 
-    @cache_results()
+    @cache_results(cache_manager=lambda self: self.cache)
     def hybrid_search(self, query: str) -> HybridSearchResult:
         """Perform hybrid search combining vector and agentic approaches"""
         start_time = time.time()

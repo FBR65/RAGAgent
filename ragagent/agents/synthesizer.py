@@ -1,8 +1,8 @@
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Optional, Dict
 from ..models import Chunk, AnswerWithCitations, AgentConfig
-from ..openai_client import OpenAIClient
+from ..unified_client import ClientFactory, UnifiedClient
 
 logger = logging.getLogger(__name__)
 
@@ -10,12 +10,35 @@ logger = logging.getLogger(__name__)
 class AnswerSynthesizerAgent:
     """Agent responsible for generating structured answers with citations"""
 
-    def __init__(self, config: AgentConfig):
+    def __init__(self, config: AgentConfig, client: Optional[UnifiedClient] = None):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Use OpenAI-compatible client for both OpenAI and Ollama
-        self.client = OpenAIClient(config)
+        # Use provided client or create new one
+        if client is not None:
+            self.client = client
+            self.owns_client = False  # Don't close shared client
+        else:
+            # Use UnifiedClient for both OpenAI and Ollama
+            if (
+                "localhost:11434" in config.base_url
+                or "ollama" in config.base_url.lower()
+            ):
+                self.client = ClientFactory.create_ollama_client(
+                    base_url=config.base_url,
+                    model=config.model_name,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                )
+            else:
+                self.client = ClientFactory.create_openai_client(
+                    base_url=config.base_url,
+                    model=config.model_name,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    api_key=getattr(config, "api_key", None),
+                )
+            self.owns_client = True  # Close owned client
 
     def generate_answer(
         self, question: str, paragraphs: List[Chunk], scratchpad: str = ""
@@ -51,6 +74,39 @@ class AnswerSynthesizerAgent:
 
         except Exception as e:
             self.logger.error(f"Error in answer synthesis: {e}")
+
+            # Bei Circuit Breaker Fehlern: Extrahiere echte Antwort aus Chunks
+            if (
+                "circuit breaker" in str(e).lower()
+                and paragraphs
+                and len(paragraphs) > 0
+            ):
+                self.logger.warning(
+                    "Circuit Breaker Fehler - verwende direkte Chunk-Extraktion"
+                )
+
+                first_chunk = paragraphs[0]
+                chunk_content = ""
+
+                if hasattr(first_chunk, "content") and first_chunk.content:
+                    chunk_content = first_chunk.content
+                elif hasattr(first_chunk, "text") and first_chunk.text:
+                    chunk_content = first_chunk.text
+                else:
+                    chunk_content = str(first_chunk)
+
+                if chunk_content and len(chunk_content.strip()) > 10:
+                    return AnswerWithCitations(
+                        answer=f"**Direkte Antwort aus dem Dokument:**\n\n{chunk_content[:600]}{'...' if len(chunk_content) > 600 else ''}",
+                        citations=[
+                            chunk_content[:300] + "..."
+                            if len(chunk_content) > 300
+                            else chunk_content
+                        ],
+                        confidence_score=0.7,
+                    )
+
+            # Bei anderen Fehlern: Original Exception weiterwerfen
             raise
 
     def _prepare_context(self, paragraphs: List[Chunk]) -> str:
@@ -163,12 +219,29 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
                 print(f"  {msg['role']}: {msg['content'][:200]}...")
 
             # Remove response_format to avoid issues with qwen3:latest
-            response = self.client.chat_completion(
+            response = self.client.chat_completion_sync(
                 messages=messages,
                 temperature=0.1,  # Low temperature for consistency
             )
 
-            content = response.get("message", {}).get("content", "")
+            # Extract content from OpenAI-compatible response format
+            content = ""
+            if "choices" in response and len(response["choices"]) > 0:
+                choice = response["choices"][0]
+                if "message" in choice and "content" in choice["message"]:
+                    content = choice["message"]["content"]
+
+            # Fallback for other response formats
+            if not content:
+                content = response.get("message", {}).get("content", "")
+
+            # Clean up qwen3 think tags
+            if content and "<think>" in content:
+                import re
+
+                # Remove <think>...</think> tags
+                content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL)
+                content = content.strip()
 
             # Log the raw response content
             print(f"DEBUG: Raw LLM response: '{content}'")
@@ -180,11 +253,29 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
                 print("DEBUG: Empty response, trying with simple text completion")
                 # Try simple text completion instead
                 simple_prompt = f"Beantworte diese Frage basierend auf dem Kontext: {messages[1]['content']}"
-                response = self.client.chat_completion(
+                response = self.client.chat_completion_sync(
                     messages=[{"role": "user", "content": simple_prompt}],
                     temperature=0.1,
                 )
-                content = response.get("message", {}).get("content", "")
+                # Extract content from OpenAI-compatible response format
+                if "choices" in response and len(response["choices"]) > 0:
+                    choice = response["choices"][0]
+                    if "message" in choice and "content" in choice["message"]:
+                        content = choice["message"]["content"]
+
+                # Fallback for other response formats
+                if not content:
+                    content = response.get("message", {}).get("content", "")
+
+                # Clean up qwen3 think tags
+                if content and "<think>" in content:
+                    import re
+
+                    # Remove <think>...</think> tags
+                    content = re.sub(
+                        r"<think>.*?</think>\s*", "", content, flags=re.DOTALL
+                    )
+                    content = content.strip()
                 print(f"DEBUG: Simple response: '{content}'")
 
             # Handle different response formats
@@ -193,8 +284,8 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
                     # Handle empty response
                     print("DEBUG: Empty response, using fallback")
                     result = {
-                        "answer": "Keine Antwort generiert.",
-                        "citations": ["[ID: 0]"],
+                        "answer": "Keine Antwort generiert - LLM Response war leer.",
+                        "citations": ["LLM-Fehler: Leere Antwort"],
                         "confidence_score": 0.0,
                     }
                 else:
@@ -220,7 +311,7 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
                                 # Simple fallback - create a basic response
                                 result = {
                                     "answer": content,
-                                    "citations": ["[ID: 0]"],
+                                    "citations": ["LLM-Fehler: JSON Parse Fehler"],
                                     "confidence_score": 0.0,
                                 }
                         else:
@@ -231,7 +322,7 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
                             # Create a basic response from the content
                             result = {
                                 "answer": content,
-                                "citations": ["[ID: 0]"],
+                                "citations": ["LLM-Fehler: Kein JSON im Response"],
                                 "confidence_score": 0.0,
                             }
             else:
@@ -241,17 +332,41 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
             return AnswerWithCitations(
                 answer=result.get("answer", ""),
                 citations=result.get(
-                    "citations", ["[ID: 0]"]
+                    "citations", ["LLM-Fehler: Keine Citations vorhanden"]
                 ),  # Ensure at least one citation
                 confidence_score=result.get("confidence_score", 0.0),
             )
 
         except Exception as e:
             self.logger.error(f"Error generating structured answer: {e}")
-            # Return fallback answer with citation
+
+            # Automatische Circuit Breaker Reparatur bei Circuit Breaker Fehlern
+            if "circuit breaker is open" in str(e).lower():
+                try:
+                    self.logger.warning(
+                        "Circuit Breaker Fehler erkannt - versuche automatische Reparatur"
+                    )
+                    # Reset Circuit Breaker über unified_client
+                    if hasattr(self, "client") and hasattr(
+                        self.client, "reset_circuit_breaker"
+                    ):
+                        self.client.reset_circuit_breaker()
+                        self.logger.info("Circuit Breaker automatisch zurückgesetzt")
+
+                    # Kurz warten und nochmal versuchen
+                    import time
+
+                    time.sleep(2)
+
+                except Exception as reset_error:
+                    self.logger.warning(
+                        f"Circuit Breaker Reset fehlgeschlagen: {reset_error}"
+                    )
+
+            # Return informative fallback with actual error info
             return AnswerWithCitations(
-                answer="Konnte keine Antwort generieren.",
-                citations=["[ID: 0]"],  # Add a dummy citation
+                answer=f"LLM-Verarbeitungsfehler: {str(e)[:200]}...\n\nDas System hat relevante Dokumentabschnitte gefunden, aber die LLM-Antwortgenerierung ist fehlgeschlagen. Mögliche Ursachen:\n- Ollama ist überlastet oder nicht verfügbar\n- Netzwerk-Timeout\n- Modell qwen3:latest ist nicht geladen\n\n💡 Versuche es in 10-30 Sekunden erneut.",
+                citations=[f"LLM-Fehler: {str(e)[:100]}"],
                 confidence_score=0.0,
             )
 
@@ -280,9 +395,6 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
         for i in range(num_answers):
             try:
                 self.logger.info(f"Generating answer {i + 1}/{num_answers}")
-
-                # Vary temperature slightly for different answers
-                temperature = 0.1 + (i * 0.05)
 
                 answer = self.generate_answer(question, paragraphs, scratchpad)
                 answers.append(answer)
@@ -377,8 +489,9 @@ Antwort: {"answer": "Die Hauptarten des maschinellen Lernens sind überwachtes L
         return True
 
     def close(self):
-        """Close the client"""
-        self.client.close()
+        """Close the client if we own it"""
+        if self.owns_client:
+            self.client.close_sync()
 
     def __enter__(self):
         return self

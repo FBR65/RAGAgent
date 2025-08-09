@@ -14,10 +14,30 @@ import time
 
 import numpy as np
 from PIL import Image
-import pytesseract
-from pdf2image import convert_from_path
+
+try:
+    import pytesseract
+
+    TESSERACT_AVAILABLE = True
+except ImportError:
+    TESSERACT_AVAILABLE = False
+    pytesseract = None
+try:
+    from pdf2image import convert_from_path
+
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
+    convert_from_path = None
 from PyPDF2 import PdfReader
-import fitz  # PyMuPDF
+
+try:
+    import fitz  # PyMuPDF
+
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+    fitz = None
 
 from .models import (
     ProcessingRequest,
@@ -67,6 +87,9 @@ class OCRConfig:
     timeout: int = 300
     retry_count: int = 3
     cache_enabled: bool = True
+    use_vision_model: bool = False
+    vision_model_name: str = "qwen2.5vl:7b"
+    vision_model_base_url: str = "http://localhost:11434"
 
 
 @dataclass
@@ -546,7 +569,35 @@ class OCRProcessor:
         self._setup_tesseract()
 
     def _setup_tesseract(self):
-        """Setup Tesseract OCR"""
+        """Setup Tesseract OCR or Vision Model"""
+        # If vision model is enabled, use that instead of Tesseract
+        if self.config.use_vision_model:
+            self.logger.info(
+                f"Using vision model {self.config.vision_model_name} for OCR"
+            )
+            # Import unified client for vision model
+            try:
+                from .unified_client import ClientFactory
+
+                self.vision_client = ClientFactory.create_ollama_client(
+                    base_url=self.config.vision_model_base_url,
+                    model=self.config.vision_model_name,
+                    temperature=0.1,
+                    max_tokens=4000,
+                )
+                self.logger.info("Vision model initialized successfully")
+                return
+            except Exception as e:
+                self.logger.error(f"Error setting up vision model: {e}")
+                raise
+
+        # Fallback to Tesseract if vision model is not enabled
+        if not TESSERACT_AVAILABLE:
+            raise ImportError(
+                "Tesseract OCR is not available. Please install pytesseract and tesseract-ocr. "
+                "Alternatively, use qwen2.5vl:7b for visual document processing."
+            )
+
         try:
             # Set Tesseract path if available
             tesseract_path = os.getenv("TESSERACT_PATH")
@@ -638,6 +689,12 @@ class OCRProcessor:
 
     def _convert_pdf_to_images(self, pdf_path: str) -> List[Image.Image]:
         """Convert PDF to images"""
+        if not PDF2IMAGE_AVAILABLE:
+            raise ImportError(
+                "pdf2image is not available. Please install pdf2image and poppler. "
+                "Alternatively, use qwen2.5vl:7b for visual document processing."
+            )
+
         try:
             # Use pdf2image to convert PDF to images
             images = convert_from_path(
@@ -659,6 +716,11 @@ class OCRProcessor:
         start_time = time.time()
 
         try:
+            # If vision model is enabled, use it directly
+            if self.config.use_vision_model:
+                return self._process_with_vision_model(image, page_number, start_time)
+
+            # Otherwise use traditional OCR pipeline
             # Preprocess image
             processed_image = self.preprocessor.preprocess_image(image)
 
@@ -706,8 +768,75 @@ class OCRProcessor:
             self.logger.error(f"Error processing image page: {e}")
             raise
 
+    def _process_with_vision_model(
+        self, image: Image.Image, page_number: int, start_time: float
+    ) -> OCRResult:
+        """Process image using vision model (qwen2.5vl)"""
+        try:
+            import base64
+            import io
+
+            # Convert image to base64 for vision model
+            img_buffer = io.BytesIO()
+            image.save(img_buffer, format="PNG")
+            img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
+
+            # Create prompt for OCR
+            prompt = """Please extract all text from this image. 
+            Return only the text content, preserving the original structure and formatting as much as possible.
+            Do not add any commentary or explanations."""
+
+            # Call vision model
+            response = self.vision_client.complete(prompt=prompt, image=img_base64)
+
+            # Extract text from response
+            if response.success and response.data:
+                text = response.data.get("content", "")
+                confidence = 0.95  # Vision models typically have high confidence
+            else:
+                text = ""
+                confidence = 0.0
+                self.logger.error(f"Vision model failed: {response.error}")
+
+            # Calculate processing time
+            processing_time = time.time() - start_time
+
+            return OCRResult(
+                text=text,
+                confidence=confidence,
+                processing_time=processing_time,
+                pages_processed=1,
+                metadata={
+                    "page_number": page_number,
+                    "image_size": image.size,
+                    "ocr_method": "vision_model",
+                    "vision_model": self.config.vision_model_name,
+                },
+                layout_info=None,  # Vision models don't provide detailed layout info
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error processing with vision model: {e}")
+            # Fallback to empty result
+            return OCRResult(
+                text="",
+                confidence=0.0,
+                processing_time=time.time() - start_time,
+                pages_processed=1,
+                metadata={
+                    "page_number": page_number,
+                    "error": str(e),
+                    "ocr_method": "vision_model_failed",
+                },
+                layout_info=None,
+            )
+
     def _ocr_full_page(self, image: Image.Image) -> Tuple[str, float]:
         """Perform OCR on full page"""
+        if not TESSERACT_AVAILABLE:
+            self.logger.warning("Tesseract not available, returning empty result")
+            return "", 0.0
+
         try:
             # Configure Tesseract
             config = f"--oem 3 --psm 6 -l {self.config.language}"
@@ -844,6 +973,12 @@ class OCRProcessor:
         self, image: Image.Image, layout_info: Dict[str, Any]
     ) -> Tuple[str, float]:
         """Perform OCR based on words"""
+        if not TESSERACT_AVAILABLE:
+            self.logger.warning(
+                "Tesseract not available, falling back to full page OCR"
+            )
+            return self._ocr_full_page(image)
+
         try:
             # Configure Tesseract for word-level OCR
             config = f"--oem 3 --psm 8 -l {self.config.language}"
@@ -878,6 +1013,12 @@ class OCRProcessor:
         self, image: Image.Image, layout_info: Dict[str, Any]
     ) -> Tuple[str, float]:
         """Perform OCR based on lines"""
+        if not TESSERACT_AVAILABLE:
+            self.logger.warning(
+                "Tesseract not available, falling back to full page OCR"
+            )
+            return self._ocr_full_page(image)
+
         try:
             # Configure Tesseract for line-level OCR
             config = f"--oem 3 --psm 7 -l {self.config.language}"
@@ -1082,7 +1223,15 @@ class OCRParser(BaseParser):
 
         self.logger.info("OCR parser initialized")
 
-    def parse_file(self, file_path: Path) -> List[Chunk]:
+    def can_parse(self, file_path: Path) -> bool:
+        """Check if this parser can handle the file"""
+        return self._is_supported_file(file_path)
+
+    def get_supported_extensions(self) -> set:
+        """Get supported file extensions"""
+        return {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"}
+
+    def parse(self, file_path: Path) -> List[Chunk]:
         """Parse file using OCR"""
         try:
             # Check if file is supported
@@ -1099,6 +1248,10 @@ class OCRParser(BaseParser):
         except Exception as e:
             self.logger.error(f"Error parsing file with OCR: {e}")
             raise
+
+    def parse_file(self, file_path: Path) -> List[Chunk]:
+        """Parse file using OCR (backward compatibility)"""
+        return self.parse(file_path)
 
     def _is_supported_file(self, file_path: Path) -> bool:
         """Check if file is supported for OCR"""
@@ -1167,5 +1320,5 @@ class OCRParser(BaseParser):
             return True  # Assume scanned if we can't determine
 
 
-# Global OCR parser instance
-ocr_parser = OCRParser()
+# Global OCR parser instance (disabled to avoid abstract class instantiation)
+# ocr_parser = OCRParser()

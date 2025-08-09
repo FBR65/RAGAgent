@@ -85,8 +85,92 @@ class RetryConfig:
 class CircuitBreakerConfig:
     """Circuit breaker configuration"""
 
-    failure_threshold: int = 5
-    recovery_timeout: int = 60
+    failure_threshold: int = 1000  # Ultra-tolerant - 1000 Fehler bis Aktivierung
+    recovery_timeout: int = 1  # Sofortige Erholung - 1 Sekunde
+    expected_exception: tuple = None
+    fallback_function: Optional[Callable] = None
+
+
+from enum import Enum
+import random
+import functools
+from contextlib import asynccontextmanager
+import aiohttp
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
+
+
+class RetryStrategy(Enum):
+    """Retry strategies"""
+
+    FIXED = "fixed"
+    EXPONENTIAL = "exponential"
+    LINEAR = "linear"
+    FIBONACCI = "fibonacci"
+    EXPONENTIAL_JITTER = "exponential_jitter"
+    ADAPTIVE = "adaptive"
+
+
+class CircuitState(Enum):
+    """Circuit breaker states"""
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+
+@dataclass
+class TimeoutConfig:
+    """Timeout configuration"""
+
+    connect_timeout: float = 10.0
+    read_timeout: float = 30.0
+    write_timeout: float = 30.0
+    total_timeout: float = 60.0
+    pool_timeout: float = 30.0
+    pool_connections: int = 100
+    pool_maxsize: int = 100
+    keepalive_timeout: float = 30.0
+    dns_cache: bool = True
+    dns_timeout: float = 10.0
+
+
+@dataclass
+class RetryConfig:
+    """Retry configuration"""
+
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 60.0
+    strategy: RetryStrategy = RetryStrategy.EXPONENTIAL_JITTER
+    retry_on_status: List[int] = None
+    retry_on_exceptions: List[Exception] = None
+    backoff_factor: float = 2.0
+    jitter: float = 0.1
+    respect_retry_after_header: bool = True
+
+    def __post_init__(self):
+        if self.retry_on_status is None:
+            self.retry_on_status = [408, 429, 500, 502, 503, 504]
+        if self.retry_on_exceptions is None:
+            self.retry_on_exceptions = [
+                asyncio.TimeoutError,
+                aiohttp.ClientError,
+                aiohttp.ClientResponseError,
+                aiohttp.ServerTimeoutError,
+                aiohttp.ClientPayloadError,
+                ConnectionError,
+                TimeoutError,
+            ]
+
+
+@dataclass
+class CircuitBreakerConfig:
+    """Circuit breaker configuration"""
+
+    failure_threshold: int = 15  # Erhöht von 5 auf 15
+    recovery_timeout: int = 30  # Reduziert von 60 auf 30
     expected_exception: tuple = None
     fallback_function: Optional[Callable] = None
 
@@ -347,16 +431,28 @@ class CircuitBreaker:
         """Execute function with circuit breaker protection"""
         self.total_requests += 1
 
+        self.logger.debug(
+            f"Circuit breaker call: state={self.state.value}, failure_count={self.failure_count}"
+        )
+
         # Check circuit state
         if self.state == CircuitState.OPEN:
-            if time.time() < self.next_attempt_time:
+            current_time = time.time()
+            self.logger.debug(
+                f"Circuit is OPEN. Current time: {current_time}, next_attempt_time: {self.next_attempt_time}"
+            )
+            if current_time < self.next_attempt_time:
                 # Call fallback function if available
                 if self.config.fallback_function:
                     return await self.config.fallback_function(*args, **kwargs)
                 else:
+                    self.logger.warning(
+                        f"Circuit breaker is open, blocking request. Will retry at {datetime.fromtimestamp(self.next_attempt_time)}"
+                    )
                     raise Exception("Circuit breaker is open")
             else:
                 # Try to transition to half-open
+                self.logger.info("Circuit breaker transitioning from OPEN to HALF_OPEN")
                 self.state = CircuitState.HALF_OPEN
                 self.failure_count = 0
 
@@ -366,6 +462,10 @@ class CircuitBreaker:
             # Success
             self.successful_requests += 1
             self.success_count += 1
+
+            self.logger.debug(
+                f"Circuit breaker: Success #{self.success_count}, state={self.state.value}"
+            )
 
             # Reset on success in half-open state
             if self.state == CircuitState.HALF_OPEN:
@@ -379,12 +479,19 @@ class CircuitBreaker:
         except Exception as e:
             # Check if exception is expected
             if not isinstance(e, self.config.expected_exception):
+                self.logger.error(
+                    f"Circuit breaker: Unexpected exception type {type(e)}: {e}"
+                )
                 raise
 
             # Failure
             self.failed_requests += 1
             self.failure_count += 1
             self.last_failure_time = time.time()
+
+            self.logger.warning(
+                f"Circuit breaker: Recording failure #{self.failure_count} (type: {type(e).__name__}): {str(e)[:100]}"
+            )
 
             # Check if we should open the circuit
             if self.state == CircuitState.HALF_OPEN or (
@@ -418,6 +525,14 @@ class CircuitBreaker:
             if self.next_attempt_time > 0
             else None,
         }
+
+    def reset(self):
+        """Reset circuit breaker to closed state"""
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.success_count = 0
+        self.next_attempt_time = 0
+        self.logger.info("Circuit breaker reset to closed state")
 
 
 class RateLimiter:

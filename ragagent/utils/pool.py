@@ -326,7 +326,11 @@ class RequestPool:
         """Submit a request to the pool"""
 
         # Create future for async result
-        loop = asyncio.new_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         future = loop.create_future()
 
         # Create pooled request

@@ -46,9 +46,11 @@ app.add_middleware(
 
 # Global instances
 pipeline = create_pipeline()
-unified_client = ClientFactory.create_client()
-resilience_manager = get_resilience_manager()
-version_manager = get_version_manager()
+
+# Initialize managers lazily to avoid event loop issues
+resilience_manager = None
+version_manager = None
+unified_client = None
 
 
 class ProcessRequest(BaseModel):
@@ -246,7 +248,14 @@ async def test_connection(model: Optional[str] = None, base_url: Optional[str] =
         if base_url:
             pipeline.config.agent.base_url = base_url
 
-        # Test unified client connection
+        # Test unified client connection (lazy initialization)
+        global unified_client, resilience_manager, version_manager
+        if unified_client is None:
+            unified_client = ClientFactory.create_ollama_client()
+        if resilience_manager is None:
+            resilience_manager = get_resilience_manager()
+        if version_manager is None:
+            version_manager = get_version_manager()
         client_info = unified_client.test_connection()
 
         # Test resilience manager
@@ -330,6 +339,13 @@ async def update_config(config: Dict[str, Any]):
         # Update unified client if agent config changed
         if "agent" in config:
             agent_config = config["agent"]
+            global unified_client, resilience_manager, version_manager
+            if unified_client is None:
+                unified_client = ClientFactory.create_ollama_client()
+            if resilience_manager is None:
+                resilience_manager = get_resilience_manager()
+            if version_manager is None:
+                version_manager = get_version_manager()
             unified_client.update_config(agent_config)
 
         # Save version if versioning is available
@@ -351,8 +367,10 @@ async def update_config(config: Dict[str, Any]):
         return {
             "message": "Configuration updated",
             "config": pipeline.config.dict(),
-            "unified_client": unified_client.get_config(),
-            "resilience_stats": resilience_manager.get_stats(),
+            "unified_client": unified_client.get_config() if unified_client else None,
+            "resilience_stats": resilience_manager.get_stats()
+            if resilience_manager
+            else None,
         }
     except Exception as e:
         logger.error(f"Failed to update config: {e}")
@@ -365,9 +383,13 @@ async def get_config():
     try:
         return {
             "pipeline": pipeline.config.dict(),
-            "unified_client": unified_client.get_config(),
-            "resilience_stats": resilience_manager.get_stats(),
-            "version_history": version_manager.get_version_history(),
+            "unified_client": unified_client.get_config() if unified_client else None,
+            "resilience_stats": resilience_manager.get_stats()
+            if resilience_manager
+            else None,
+            "version_history": version_manager.get_version_history()
+            if version_manager
+            else None,
         }
     except Exception as e:
         logger.error(f"Failed to get config: {e}")
@@ -420,6 +442,9 @@ async def rollback_config_version(version: str):
 async def get_resilience_stats():
     """Get resilience manager statistics"""
     try:
+        global resilience_manager
+        if resilience_manager is None:
+            resilience_manager = get_resilience_manager()
         return resilience_manager.get_stats()
     except Exception as e:
         logger.error(f"Failed to get resilience stats: {e}")

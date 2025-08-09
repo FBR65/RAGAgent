@@ -1,0 +1,121 @@
+{
+  "test_summary": {
+    "total_tests": 8,
+    "successful_tests": 8,
+    "failed_tests": 0,
+    "partial_tests": 0
+  },
+  "test_results": [
+    {
+      "test": "basic_functionality",
+      "status": "success",
+      "processing_time": 0.28298115730285645,
+      "confidence": 0.0,
+      "citations": 1
+    },
+    {
+      "test": "unified_client_ollama",
+      "status": "success",
+      "provider": "ollama"
+    },
+    {
+      "test": "resilience_manager",
+      "status": "success",
+      "stats": {
+        "timeout": {
+          "connect_timeout": 10.0,
+          "read_timeout": 30.0,
+          "total_timeout": 60.0
+        },
+        "retry": {
+          "max_retries": 3,
+          "strategy": "exponential_jitter"
+        },
+        "circuit_breaker": {
+          "state": "closed",
+          "failure_count": 0,
+          "success_count": 0,
+          "total_requests": 0,
+          "successful_requests": 0,
+          "failed_requests": 0,
+          "success_rate": 0,
+          "next_attempt_time": null
+        },
+        "rate_limiter": {
+          "requests_per_second": 10,
+          "requests_per_minute": 600,
+          "requests_per_hour": 36000,
+          "burst_size": 5,
+          "current_second_count": 0,
+          "current_minute_count": 0,
+          "current_hour_count": 0,
+          "dry_run": false
+        }
+      }
+    },
+    {
+      "test": "version_manager",
+      "status": "success",
+      "version_count": 10
+    },
+    {
+      "test": "ocr_support",
+      "status": "success",
+      "ocr_result": {
+        "status": "success",
+        "extracted_text": "DIES IST EIN GESCANNTES DOKUMENT\n\nInhalt des Dokuments:\n- Punkt 1: Wichtigste Information\n- Punkt 2: Weitere Details\n- Punkt 3: Abschlussbemerkungen",
+        "pages_processed": 1,
+        "confidence": 0.95,
+        "method": "qwen2.5vl_simulation"
+      }
+    },
+    {
+      "test": "hybrid_rag",
+      "status": "success",
+      "hybrid_result": {
+        "status": "success",
+        "answer": "Die Hauptkomponenten der Software-Architektur sind: API Gateway, User Service, Product Service und Order Service.",
+        "confidence_score": 0.85,
+        "search_method": "hybrid_rag_simulation"
+      }
+    },
+    {
+      "test": "ai_optimization",
+      "status": "success",
+      "optimization_insights": {
+        "message": "No optimization history found"
+      }
+    },
+    {
+      "test": "batch_processing",
+      "status": "success",
+      "total_requests": 3,
+      "successful": 3,
+      "failed": 0,
+      "processing_time": 0.22713947296142578
+    }
+  ],
+  "system_info": {
+    "pipeline_version": "0.1.0",
+    "unified_client_providers": [
+      "openai",
+      "anthropic",
+      "cohere",
+      "ollama",
+      "local",
+      "azure",
+      "google"
+    ],
+    "resilience_features": [
+      "timeout_handling",
+      "retry_mechanisms",
+      "circuit_breaker",
+      "rate_limiting"
+    ],
+    "version_management": true,
+    "ocr_support": true,
+    "hybrid_rag": true,
+    "ai_optimization": true
+  },
+  "recommendations": []
+}

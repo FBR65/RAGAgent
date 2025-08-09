@@ -9,7 +9,7 @@ from ..models import (
     AgentConfig,
 )
 
-from ..openai_client import OpenAIClient
+from ..unified_client import ClientFactory, UnifiedClient
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +17,35 @@ logger = logging.getLogger(__name__)
 class JudgeAgent:
     """Agent responsible for verifying answer accuracy and quality"""
 
-    def __init__(self, config: AgentConfig):
+    def __init__(self, config: AgentConfig, client: Optional[UnifiedClient] = None):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Use OpenAI-compatible client for both OpenAI and Ollama
-        self.client = OpenAIClient(config)
+        # Use provided client or create new one
+        if client is not None:
+            self.client = client
+            self.owns_client = False  # Don't close shared client
+        else:
+            # Use UnifiedClient for both OpenAI and Ollama
+            if (
+                "localhost:11434" in config.base_url
+                or "ollama" in config.base_url.lower()
+            ):
+                self.client = ClientFactory.create_ollama_client(
+                    base_url=config.base_url,
+                    model=config.model_name,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                )
+            else:
+                self.client = ClientFactory.create_openai_client(
+                    base_url=config.base_url,
+                    model=config.model_name,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    api_key=getattr(config, "api_key", None),
+                )
+            self.owns_client = True  # Close owned client
 
     def verify_answer(
         self, question: str, answer: AnswerWithCitations, cited_paragraphs: List[Chunk]
@@ -127,7 +150,15 @@ Bewerte die Vertrauenswürdigkeit als:
 - MITTEL: Antwort erfordert vernünftige Schlussfolgerungen aus den Quellen
 - NIEDRIG: Antwort wird schlecht unterstützt oder enthält nicht unterstützte Behauptungen
 
-Sei gründlich, aber fair in deiner Bewertung."""
+WICHTIG: Antworte NUR mit einem validen JSON-Objekt in diesem exakten Format:
+{
+  "is_accurate": true/false,
+  "explanation": "Deine detaillierte Erklärung",
+  "confidence": "high/medium/low",
+  "issues_found": ["Liste", "von", "Problemen"]
+}
+
+Schreibe keinen anderen Text - nur das JSON-Objekt."""
 
     def _generate_verification_result(
         self, messages: List[Dict[str, str]]
@@ -171,14 +202,62 @@ Sei gründlich, aber fair in deiner Bewertung."""
         }
 
         try:
-            response = self.client.chat_completion(
+            response = self.client.chat_completion_sync(
                 messages=messages,
                 response_format=response_format,
                 temperature=0.0,  # Maximum consistency for verification
             )
 
-            content = response.get("message", {}).get("content", "{}")
-            result = json.loads(content)
+            # Extract content from OpenAI-compatible response format
+            content = ""
+            if "choices" in response and len(response["choices"]) > 0:
+                choice = response["choices"][0]
+                if "message" in choice and "content" in choice["message"]:
+                    content = choice["message"]["content"]
+
+            # Fallback for other response formats
+            if not content:
+                content = response.get("message", {}).get("content", "{}")
+
+            # Debug logging
+            self.logger.debug(f"Raw verification response: {repr(content)}")
+
+            # Check if content is empty or None
+            if not content or content.strip() == "":
+                self.logger.warning("Received empty response from verification LLM")
+                content = '{"is_accurate": false, "explanation": "Empty response from LLM", "confidence": "low", "issues_found": ["Empty LLM response"]}'
+
+            # Clean up qwen3 think tags
+            if content and "<think>" in content:
+                import re
+
+                # Remove <think>...</think> tags
+                content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL)
+                content = content.strip()
+
+            # Final check after cleaning
+            if not content or content.strip() == "":
+                self.logger.warning("Content is empty after cleaning think tags")
+                content = '{"is_accurate": false, "explanation": "Empty response after cleaning", "confidence": "low", "issues_found": ["Empty response after processing"]}'
+
+            try:
+                result = json.loads(content)
+            except json.JSONDecodeError as json_error:
+                self.logger.error(f"JSON decode error: {json_error}")
+                self.logger.error(f"Problematic content: {repr(content)}")
+
+                # Try to extract JSON from text using smart extraction
+                result = self._extract_json_from_text(content)
+                if result:
+                    self.logger.info(
+                        "Successfully extracted JSON from natural language response"
+                    )
+                else:
+                    # Generate fallback result from natural language analysis
+                    result = self._analyze_natural_language_response(content)
+                    self.logger.info(
+                        "Generated fallback verification result from natural language analysis"
+                    )
 
             return VerificationResult(
                 is_accurate=result.get("is_accurate", False),
@@ -388,9 +467,141 @@ Sei gründlich, aber fair in deiner Bewertung."""
 
         return True
 
+    def _extract_json_from_text(self, content: str) -> Dict[str, Any]:
+        """Try to extract JSON from natural language text"""
+        import re
+
+        # Look for JSON-like structures in the text
+        json_patterns = [
+            r'\{[^{}]*"is_accurate"[^{}]*\}',  # Simple single-line JSON
+            r'\{.*?"is_accurate".*?\}',  # Multi-line JSON
+            r"```json\s*(\{.*?\})\s*```",  # JSON in code blocks
+            r"```\s*(\{.*?\})\s*```",  # JSON in any code block
+        ]
+
+        for pattern in json_patterns:
+            matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
+            for match in matches:
+                try:
+                    # If the pattern captured a group, use that
+                    json_text = match if isinstance(match, str) else match[0]
+                    result = json.loads(json_text)
+                    if "is_accurate" in result:
+                        return result
+                except (json.JSONDecodeError, IndexError):
+                    continue
+
+        return None
+
+    def _analyze_natural_language_response(self, content: str) -> Dict[str, Any]:
+        """Analyze natural language response to extract verification information"""
+        content_lower = content.lower()
+
+        # Determine accuracy
+        positive_indicators = [
+            "korrekt",
+            "richtig",
+            "accurate",
+            "correct",
+            "stimmt",
+            "zutreffend",
+            "vertrauenswürdig",
+            "reliable",
+            "präzise",
+            "accurate",
+        ]
+        negative_indicators = [
+            "falsch",
+            "incorrect",
+            "wrong",
+            "ungenau",
+            "inaccurate",
+            "fehler",
+            "error",
+            "problematisch",
+            "unreliable",
+            "unzuverlässig",
+        ]
+
+        # Count positive and negative indicators
+        positive_count = sum(
+            1 for indicator in positive_indicators if indicator in content_lower
+        )
+        negative_count = sum(
+            1 for indicator in negative_indicators if indicator in content_lower
+        )
+
+        # Determine accuracy based on indicators
+        if positive_count > negative_count:
+            is_accurate = True
+        elif negative_count > positive_count:
+            is_accurate = False
+        else:
+            # Default to conservative approach
+            is_accurate = False
+
+        # Determine confidence
+        high_conf_indicators = [
+            "definitiv",
+            "sicher",
+            "eindeutig",
+            "clear",
+            "obviously",
+            "certainly",
+        ]
+        medium_conf_indicators = [
+            "wahrscheinlich",
+            "likely",
+            "vermutlich",
+            "scheint",
+            "appears",
+        ]
+        low_conf_indicators = [
+            "unsicher",
+            "unclear",
+            "unklar",
+            "möglicherweise",
+            "potentially",
+        ]
+
+        if any(indicator in content_lower for indicator in high_conf_indicators):
+            confidence = "high"
+        elif any(indicator in content_lower for indicator in medium_conf_indicators):
+            confidence = "medium"
+        elif any(indicator in content_lower for indicator in low_conf_indicators):
+            confidence = "low"
+        else:
+            # Default based on content length and detail
+            confidence = "medium" if len(content) > 200 else "low"
+
+        # Extract issues
+        issues_found = []
+        if "fehler" in content_lower or "error" in content_lower:
+            issues_found.append("Potential errors mentioned in analysis")
+        if "unvollständig" in content_lower or "incomplete" in content_lower:
+            issues_found.append("Incomplete information noted")
+        if "patent" in content_lower and "nicht" in content_lower:
+            issues_found.append("Patent-related limitations mentioned")
+
+        # Add fallback indicator
+        issues_found.append("Derived from natural language analysis")
+
+        # Create explanation
+        explanation = f"Analysis derived from natural language response. Accuracy: {is_accurate}, Confidence: {confidence}"
+        if len(content) > 100:
+            explanation += f". Key content: {content[:100]}..."
+
+        return {
+            "is_accurate": is_accurate,
+            "explanation": explanation,
+            "confidence": confidence,
+            "issues_found": issues_found,
+        }
+
     def close(self):
-        """Close the client"""
-        self.client.close()
+        """Close the client if we own it"""
+        if self.owns_client:
+            self.client.close_sync()
 
     def __enter__(self):
         return self

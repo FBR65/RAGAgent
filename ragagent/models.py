@@ -63,13 +63,12 @@ class VerificationResult(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    model_name: str = "gpt-3.5-turbo"
-    base_url: str = "https://api.openai.com/v1"
+    model_name: str = "qwen3:latest"
+    base_url: str = "http://localhost:11434"
     api_key: str = "dummy-key"  # Für Testzwecke
     max_tokens: int = 4000
     temperature: float = 0.1
     timeout: int = 30
-    base_url: str = "http://localhost:11434"
     format: Optional[str] = None  # For qwen2.5 model
 
 

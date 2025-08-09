@@ -3,6 +3,7 @@ Utility modules for the Agentic RAG system
 """
 
 from .cache import CacheManager, MemoryCache, DiskCache, CacheEntry, cache_results
+from .hash_utils import get_file_hash, get_text_hash, get_directory_hash
 from .pool import (
     ConnectionPool,
     RequestPool,
@@ -49,6 +50,10 @@ __all__ = [
     "DiskCache",
     "CacheEntry",
     "cache_results",
+    # Hash Utils
+    "get_file_hash",
+    "get_text_hash",
+    "get_directory_hash",
     # Pool
     "ConnectionPool",
     "RequestPool",

@@ -1,0 +1,597 @@
+[
+  {
+    "version": "v1.0.0",
+    "metadata": {
+      "version": "v1.0.0",
+      "created_at": "2025-08-09T16:46:16",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "e5582d61afc5cde6",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_165807",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_165807",
+      "created_at": "2025-08-09T16:58:07",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "d4c2899048edd306",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_170218",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_170218",
+      "created_at": "2025-08-09T17:02:18",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "f5c29c31b882d12a",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_170629",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_170629",
+      "created_at": "2025-08-09T17:06:29",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "c33e5ed5192de08a",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_171039",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_171039",
+      "created_at": "2025-08-09T17:10:39",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "05405defe6ef1ec6",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_171447",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_171447",
+      "created_at": "2025-08-09T17:14:47",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "80a3bf2d10194140",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_172200",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_172200",
+      "created_at": "2025-08-09T17:22:00",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "b6870b4bef0bf660",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_172522",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_172522",
+      "created_at": "2025-08-09T17:25:22",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "19277511cb107991",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_174117",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_174117",
+      "created_at": "2025-08-09T17:41:17",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "9339ae5c11302610",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_175424",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_175424",
+      "created_at": "2025-08-09T17:54:24",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "101b19282f72503d",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_180101",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_180101",
+      "created_at": "2025-08-09T18:01:01",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "d25728b46e15418d",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_181717",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_181717",
+      "created_at": "2025-08-09T18:17:17",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "5df7612175359a71",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_191814",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_191814",
+      "created_at": "2025-08-09T19:18:14",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "ab25492882c6c1ca",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_192428",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_192428",
+      "created_at": "2025-08-09T19:24:28",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "346905e77845d0e8",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_193226",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_193226",
+      "created_at": "2025-08-09T19:32:26",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "7673f1b7804b997e",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_193919",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_193919",
+      "created_at": "2025-08-09T19:39:19",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "fa7813637f13395d",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250809_194620",
+    "metadata": {
+      "version": "v1.0.0-test-20250809_194620",
+      "created_at": "2025-08-09T19:46:20",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "0fc6873236881df1",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
+  }
+]

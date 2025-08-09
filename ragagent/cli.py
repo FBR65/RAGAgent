@@ -623,7 +623,6 @@ def reset_resilience(ctx):
     resilience_manager = ctx.obj["resilience_manager"]
 
     try:
-        global resilience_manager
         resilience_manager = get_resilience_manager()
         click.echo("✅ Resilience manager reset")
 

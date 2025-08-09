@@ -756,11 +756,10 @@ class ReliabilityEnhancer:
     def _check_ai_models(self) -> Dict[str, Any]:
         """Check AI models"""
         try:
-            from .openai_client import OpenAIClientFactory
+            from .unified_client import ClientFactory
 
-            client = OpenAIClientFactory.create_client()
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+            client = ClientFactory.create_openai_client()
+            response = client.chat_completion(
                 messages=[{"role": "user", "content": "test"}],
                 max_tokens=1,
             )

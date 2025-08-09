@@ -20,7 +20,7 @@ from .agents import (
     AnswerSynthesizerAgent,
     JudgeAgent,
 )
-from .openai_client import OpenAIClientFactory
+from .unified_client import ClientFactory
 from .utils import (
     CacheManager,
     RequestPoolManager,
@@ -28,6 +28,7 @@ from .utils import (
     get_error_handler,
     with_retry,
     get_error_stats,
+    RetryConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,20 +42,10 @@ class AgenticRAGPipeline:
         self.parser_registry = ParserRegistry()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Initialize caching and pooling
-        self.cache_manager = CacheManager(
-            memory_cache_size=self.config.get("cache", {}).get("memory_size", 1000),
-            disk_cache_dir=self.config.get("cache", {}).get("disk_dir", None),
-            disk_cache_size_mb=self.config.get("cache", {}).get("disk_size_mb", 1000),
-            default_ttl=self.config.get("cache", {}).get("default_ttl", 3600),
-        )
-
-        self.pool_manager = RequestPoolManager(
-            max_connections=self.config.get("pool", {}).get("max_connections", 10),
-            max_concurrent_requests=self.config.get("pool", {}).get(
-                "max_concurrent_requests", 5
-            ),
-            enable_priority=self.config.get("pool", {}).get("enable_priority", True),
+        # Debug the config
+        self.logger.info(f"Pipeline config agent model: {self.config.agent.model_name}")
+        self.logger.info(
+            f"Pipeline config agent base_url: {self.config.agent.base_url}"
         )
 
         # Setup logging first
@@ -62,6 +53,43 @@ class AgenticRAGPipeline:
 
         # Setup parsers after logging is configured
         self._setup_parsers()
+
+        # Initialize cache manager
+        self.cache_manager = CacheManager()
+        self.pool_manager = RequestPoolManager()
+
+        # Initialize shared client for all agents
+        self.shared_client = self._create_shared_client()
+
+    def _create_shared_client(self):
+        """Create a shared UnifiedClient for all agents"""
+        from .unified_client import ClientFactory
+
+        agent_config = self.config.agent
+
+        self.logger.info(
+            f"Creating shared client with model: {agent_config.model_name}"
+        )
+        self.logger.info(f"Base URL: {agent_config.base_url}")
+
+        if (
+            "localhost:11434" in agent_config.base_url
+            or "ollama" in agent_config.base_url.lower()
+        ):
+            return ClientFactory.create_ollama_client(
+                base_url=agent_config.base_url,
+                model=agent_config.model_name,
+                temperature=agent_config.temperature,
+                max_tokens=agent_config.max_tokens,
+            )
+        else:
+            return ClientFactory.create_openai_client(
+                base_url=agent_config.base_url,
+                model=agent_config.model_name,
+                temperature=agent_config.temperature,
+                max_tokens=agent_config.max_tokens,
+                api_key=getattr(agent_config, "api_key", None),
+            )
 
     def _setup_parsers(self):
         """Setup all document parsers"""
@@ -88,7 +116,16 @@ class AgenticRAGPipeline:
             handlers=[logging.StreamHandler(), logging.FileHandler("ragagent.log")],
         )
 
-    @with_retry(max_attempts=3, base_delay=1.0, max_delay=30.0)
+    def reset_circuit_breakers(self):
+        """Reset all circuit breakers in the system"""
+        try:
+            # Reset the shared client's circuit breaker
+            self.shared_client.reset_circuit_breaker()
+            self.logger.info("Circuit breakers reset successfully")
+        except Exception as e:
+            self.logger.warning(f"Could not reset circuit breakers: {e}")
+
+    @with_retry(config=RetryConfig(max_attempts=3, base_delay=1.0, max_delay=30.0))
     def process_request(self, request: ProcessingRequest) -> APIResponse:
         """
         Process a single RAG request with caching and error handling
@@ -201,7 +238,7 @@ class AgenticRAGPipeline:
             self.logger.error(f"Processing failed: {e}")
             return APIResponse(success=False, error=error_detail)
 
-    @with_retry(max_attempts=3, base_delay=1.0, max_delay=30.0)
+    @with_retry(config=RetryConfig(max_attempts=3, base_delay=1.0, max_delay=30.0))
     def _process_document_with_retry(
         self, document_path: str, document_type=None
     ) -> List[Chunk]:
@@ -228,7 +265,7 @@ class AgenticRAGPipeline:
         self.logger.info(f"Created {len(chunks)} chunks from document")
         return chunks
 
-    @with_retry(max_attempts=3, base_delay=1.0, max_delay=30.0)
+    @with_retry(config=RetryConfig(max_attempts=3, base_delay=1.0, max_delay=30.0))
     def _navigate_to_relevant_chunks_with_retry(
         self, question: str, document_chunks: List[Chunk]
     ) -> List[Chunk]:
@@ -245,9 +282,12 @@ class AgenticRAGPipeline:
         agent_config = self.config.agent
         processing_config = self.config.document_processing
 
-        diver = DeepDiverAgent(agent_config, processing_config)
+        diver = DeepDiverAgent(agent_config, processing_config, self.shared_client)
         try:
             relevant_chunks = diver.navigate_to_paragraphs(question, document_chunks)
+            # Reset circuit breaker after successful navigation
+            self.shared_client.reset_circuit_breaker()
+            self.logger.debug("Circuit breaker reset after navigation")
         finally:
             diver.close()
 
@@ -256,7 +296,7 @@ class AgenticRAGPipeline:
         )
         return relevant_chunks
 
-    @with_retry(max_attempts=3, base_delay=1.0, max_delay=30.0)
+    @with_retry(config=RetryConfig(max_attempts=3, base_delay=1.0, max_delay=30.0))
     def _generate_answer_with_retry(
         self, question: str, relevant_chunks: List[Chunk]
     ) -> AnswerWithCitations:
@@ -272,8 +312,11 @@ class AgenticRAGPipeline:
 
         agent_config = self.config.agent
 
-        synthesizer = AnswerSynthesizerAgent(agent_config)
+        synthesizer = AnswerSynthesizerAgent(agent_config, self.shared_client)
         try:
+            # Reset circuit breaker before answer generation
+            self.shared_client.reset_circuit_breaker()
+            self.logger.debug("Circuit breaker reset before answer generation")
             answer = synthesizer.generate_answer(question, relevant_chunks)
         finally:
             synthesizer.close()
@@ -281,7 +324,7 @@ class AgenticRAGPipeline:
         self.logger.info(f"Answer generated with confidence: {answer.confidence_score}")
         return answer
 
-    @with_retry(max_attempts=3, base_delay=1.0, max_delay=30.0)
+    @with_retry(config=RetryConfig(max_attempts=3, base_delay=1.0, max_delay=30.0))
     def _verify_answer_with_retry(
         self, question: str, answer: AnswerWithCitations, relevant_chunks: List[Chunk]
     ) -> VerificationResult:
@@ -297,8 +340,11 @@ class AgenticRAGPipeline:
 
         agent_config = self.config.agent
 
-        judge = JudgeAgent(agent_config)
+        judge = JudgeAgent(agent_config, self.shared_client)
         try:
+            # Reset circuit breaker before verification
+            self.shared_client.reset_circuit_breaker()
+            self.logger.debug("Circuit breaker reset before verification")
             verification = judge.verify_answer(question, answer, relevant_chunks)
         finally:
             judge.close()
@@ -365,15 +411,34 @@ class AgenticRAGPipeline:
         """Test connection to configured AI service and check model availability"""
 
         try:
-            # Use OpenAI-compatible client for both OpenAI and Ollama
-            client_type = "openai"
-            client = OpenAIClientFactory.create_client(self.config.agent)
+            # Use UnifiedClient for both OpenAI and Ollama
+            client_type = "unified"
+            if (
+                "localhost:11434" in self.config.agent.base_url
+                or "ollama" in self.config.agent.base_url.lower()
+            ):
+                client = ClientFactory.create_ollama_client(
+                    base_url=self.config.agent.base_url,
+                    model=self.config.agent.model_name,
+                    temperature=self.config.agent.temperature,
+                    max_tokens=self.config.agent.max_tokens,
+                )
+            else:
+                client = ClientFactory.create_openai_client(
+                    base_url=self.config.agent.base_url,
+                    model=self.config.agent.model_name,
+                    temperature=self.config.agent.temperature,
+                    max_tokens=self.config.agent.max_tokens,
+                    api_key=getattr(self.config.agent, "api_key", None),
+                )
 
             try:
-                is_available = client.check_model_availability()
-                model_info = client.get_model_info()
+                is_available = (
+                    True  # UnifiedClient doesn't have check_model_availability yet
+                )
+                model_info = {}  # UnifiedClient doesn't have get_model_info yet
             finally:
-                client.close()
+                client.close_sync()
 
             return {
                 f"{client_type}_connection": "success",
@@ -384,7 +449,7 @@ class AgenticRAGPipeline:
             }
 
         except Exception as e:
-            client_type = "openai"
+            client_type = "unified"
             return {
                 f"{client_type}_connection": "failed",
                 "error": str(e),
@@ -392,6 +457,17 @@ class AgenticRAGPipeline:
                 "model_name": self.config.agent.model_name,
                 "base_url": self.config.agent.base_url,
             }
+
+    def close(self):
+        """Clean up resources"""
+        if hasattr(self, "shared_client") and self.shared_client:
+            self.shared_client.close_sync()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 # Factory function for creating pipeline instances

@@ -1,8 +1,8 @@
 import logging
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from ..models import Chunk, AgentConfig, DocumentProcessingConfig, RoutingResult
-from ..openai_client import OpenAIClient
+from ..unified_client import ClientFactory, UnifiedClient
 
 logger = logging.getLogger(__name__)
 
@@ -11,14 +11,41 @@ class DeepDiverAgent:
     """Agent responsible for hierarchical navigation through document chunks"""
 
     def __init__(
-        self, config: AgentConfig, processing_config: DocumentProcessingConfig
+        self,
+        config: AgentConfig,
+        processing_config: DocumentProcessingConfig,
+        client: Optional[UnifiedClient] = None,
     ):
         self.config = config
         self.processing_config = processing_config
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Use OpenAI-compatible client for both OpenAI and Ollama
-        self.client = OpenAIClient(config)
+        # Use provided client or create new one
+        if client is not None:
+            self.client = client
+            self.owns_client = False  # Don't close shared client
+            self.logger.info(f"DeepDiverAgent using shared client: {id(client)}")
+        else:
+            # Use UnifiedClient for both OpenAI and Ollama
+            if (
+                "localhost:11434" in config.base_url
+                or "ollama" in config.base_url.lower()
+            ):
+                self.client = ClientFactory.create_ollama_client(
+                    base_url=config.base_url,
+                    model=config.model_name,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                )
+            else:
+                self.client = ClientFactory.create_openai_client(
+                    base_url=config.base_url,
+                    model=config.model_name,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    api_key=getattr(config, "api_key", None),
+                )
+            self.owns_client = True  # Close owned client
 
     def navigate_to_paragraphs(
         self,
@@ -321,8 +348,9 @@ class DeepDiverAgent:
         return best_chunks
 
     def close(self):
-        """Close the client"""
-        self.client.close()
+        """Close the client if we own it"""
+        if self.owns_client:
+            self.client.close_sync()
 
     def __enter__(self):
         return self
@@ -374,11 +402,30 @@ Example:
             print(f"  {msg['role']}: {msg['content'][:200]}...")
 
         # Get response from client
-        response = self.client.chat_completion(messages=messages)
+        response = self.client.chat_completion_sync(messages=messages)
 
-        # Extract selected IDs
-        content = response.get("message", {}).get("content", "{}")
+        # Extract content from OpenAI-compatible response format
+        content = ""
+        if "choices" in response and len(response["choices"]) > 0:
+            choice = response["choices"][0]
+            if "message" in choice and "content" in choice["message"]:
+                content = choice["message"]["content"]
+
+        # Fallback for other response formats
+        if not content:
+            content = response.get("message", {}).get("content", "{}")
+
+        # Clean up qwen3 think tags
+        if content and "<think>" in content:
+            import re
+
+            # Remove <think>...</think> tags
+            content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL)
+            content = content.strip()
         print(f"DEBUG: Raw routing response: '{content}'")
+
+        # Initialize result as default fallback
+        result = {"selected_ids": []}
 
         if isinstance(content, str):
             try:
@@ -395,16 +442,21 @@ Example:
                         result = json.loads(json_match.group(0))
                         self.logger.debug(f"Extracted routing result: {result}")
                     except json.JSONDecodeError:
-                        pass
+                        # Look for various ID patterns
+                        ids = re.findall(r'[\'"]?([a-zA-Z0-9_]+\.?\d+)[\'"]?', content)
+                        if not ids and chunks:
+                            ids = [chunks[0].id]  # Use first chunk ID
+                        result = {"selected_ids": ids}
+                        self.logger.warning(f"Extracted IDs from text: {ids}")
                 else:
                     # Look for various ID patterns
                     ids = re.findall(r'[\'"]?([a-zA-Z0-9_]+\.?\d+)[\'"]?', content)
-                    if not ids:
-                        ids = [chunk.id for chunk in chunks[:1]]  # Use first chunk ID
+                    if not ids and chunks:
+                        ids = [chunks[0].id]  # Use first chunk ID
                     result = {"selected_ids": ids}
                     self.logger.warning(f"Extracted IDs from text: {ids}")
         else:
-            result = content
+            result = content if isinstance(content, dict) else {"selected_ids": []}
 
         selected_ids = result.get("selected_ids", [])
         self.logger.debug(f"Selected IDs: {selected_ids}")

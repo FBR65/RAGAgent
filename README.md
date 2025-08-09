@@ -2,10 +2,42 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
+[![Gradio](https://img.shields.io/badge/Gradio-5.34.0-orange.svg)](https://gradio.app)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Code Style](https://img.shields.io/badge/Code-Black-black.svg)](https://black.readthedocs.io)
 
 Ein fortschrittliches Retrieval Augmented Generation (RAG) System mit KI-Agenten für intelligente Dokumentenverarbeitung und Antwortgenerierung.
+
+## Quick Start
+
+### Einfacher Start (Alle Services)
+```bash
+# Windows (PowerShell)
+.\start_ragagent.ps1
+
+# Windows (Batch)
+start_ragagent.bat
+
+# Linux/Mac (Python)
+python start_ragagent.py
+```
+
+### Einzelne Services
+```bash
+# Nur API starten (Port 8000)
+python start_api.py
+
+# Nur Frontend starten (Port 7860)
+python start_frontend.py
+
+# Entwicklungsmodus mit Hot-Reload
+python start_dev.py
+```
+
+### Verfügbare URLs
+- **API Server**: http://localhost:8000
+- **API Dokumentation**: http://localhost:8000/docs
+- **Gradio Frontend**: http://localhost:7860
 
 ## Übersicht
 
@@ -391,25 +423,6 @@ optimizer = AIOptimizationManager()
 optimization = optimizer.optimize_query_processing("Was ist KI?")
 ```
 
-## Testing
-
-### Unit-Tests
-```bash
-# Alle Tests ausführen
-pytest
-
-# Bestimmte Testdatei
-pytest tests/test_pipeline.py
-
-# Mit Coverage
-pytest --cov=ragagent
-```
-
-### Integrationstests
-```bash
-# Integrationstests ausführen
-pytest tests/integration/
-```
 
 ### Real-Life-Test
 ```bash

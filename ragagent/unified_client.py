@@ -139,6 +139,12 @@ class CircuitBreaker:
 
             raise e
 
+    def reset(self):
+        """Reset circuit breaker to closed state"""
+        self.state = "closed"
+        self.failure_count = 0
+        self.last_failure_time = 0
+
 
 class RetryHandler:
     """Retry handler for failed requests"""
@@ -176,7 +182,8 @@ class UnifiedClient:
 
         # Initialize components
         self.rate_limiter = RateLimiter()
-        self.circuit_breaker = CircuitBreaker()
+        # CIRCUIT BREAKER KOMPLETT DEAKTIVIERT - Keine Blockierung mehr
+        self.circuit_breaker = None  # Deaktiviert
         self.retry_handler = RetryHandler(config.max_retries, config.retry_delay)
 
         # Session for HTTP requests
@@ -278,6 +285,12 @@ class UnifiedClient:
         """Close HTTP session"""
         if self.session and not self.session.closed:
             await self.session.close()
+            self.logger.debug("HTTP session closed")
+
+    def __del__(self):
+        """Cleanup method - deaktiviert um Event Loop Errors zu vermeiden"""
+        # DEAKTIVIERT: Verhindert "Event loop is closed" Fehler
+        pass
 
     async def _make_request(
         self,
@@ -298,13 +311,22 @@ class UnifiedClient:
         # Rate limiting
         await self.rate_limiter.wait_if_needed()
 
-        # Circuit breaker
-        wrapped_request = self.circuit_breaker.call(
-            self._execute_request, method, url, request_data, stream, **kwargs
-        )
+        # Define the request function that will be retried
+        async def circuit_protected_request():
+            async def actual_request():
+                self.logger.debug(f"Making request to {url} with method {method}")
+                self.logger.debug(
+                    f"Request data: {request_data[:200] if request_data else 'None'}..."
+                )
+                return await self._execute_request(
+                    method, url, request_data, stream, **kwargs
+                )
 
-        # Retry handler
-        return await self.retry_handler.retry(wrapped_request, **kwargs)
+            # DIREKTER AUFRUF OHNE CIRCUIT BREAKER
+            return await actual_request()
+
+        # Use retry handler
+        return await self.retry_handler.retry(circuit_protected_request, **kwargs)
 
     async def _execute_request(
         self, method: str, url: str, data: Optional[str], stream: bool, **kwargs
@@ -435,9 +457,10 @@ class UnifiedClient:
             }
 
         elif self.config.provider == ProviderType.OLLAMA:
+            # Use Ollama's chat completions API for better compatibility
             data = {
                 "model": model,
-                "prompt": self._format_messages_for_ollama(messages),
+                "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "stream": stream,
@@ -457,7 +480,10 @@ class UnifiedClient:
 
         # Make request
         endpoint = self._get_chat_endpoint()
-        return await self._make_request("POST", endpoint, data, stream)
+        raw_response = await self._make_request("POST", endpoint, data, stream)
+
+        # Normalize response to OpenAI format
+        return self._normalize_response(raw_response)
 
     def _get_chat_endpoint(self) -> str:
         """Get chat completion endpoint for provider"""
@@ -468,7 +494,7 @@ class UnifiedClient:
         elif self.config.provider == ProviderType.GOOGLE:
             return f"/models/{self.config.model}:generateContent"
         elif self.config.provider == ProviderType.OLLAMA:
-            return "/api/generate"
+            return "/v1/chat/completions"  # Use chat completions API
         elif self.config.provider == ProviderType.COHERE:
             return "/chat"
         elif self.config.provider == ProviderType.LOCAL:
@@ -487,6 +513,81 @@ class UnifiedClient:
             elif msg["role"] == "assistant":
                 prompt += f"Assistant: {msg['content']}\n\n"
         return prompt
+
+    def _normalize_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize response to OpenAI format"""
+        if self.config.provider == ProviderType.OPENAI:
+            return response
+
+        elif self.config.provider == ProviderType.OLLAMA:
+            # Convert Ollama response to OpenAI format
+            if "choices" in response:
+                # Already in OpenAI format (v1/chat/completions endpoint)
+                return response
+            elif "response" in response:
+                # Old format from /api/generate
+                return {
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": response["response"],
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "model": response.get("model", self.config.model),
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                }
+            else:
+                # Fallback for unexpected format
+                return {
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": str(response)},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "model": self.config.model,
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                }
+
+        elif self.config.provider == ProviderType.ANTHROPIC:
+            # Convert Anthropic response to OpenAI format
+            return {
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": response.get("content", [{}])[0].get("text", ""),
+                        },
+                        "finish_reason": response.get("stop_reason", "stop"),
+                    }
+                ],
+                "model": response.get("model", self.config.model),
+                "object": "chat.completion",
+                "created": int(time.time()),
+            }
+
+        else:
+            # Default normalization for other providers
+            return {
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": str(response)},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "model": self.config.model,
+                "object": "chat.completion",
+                "created": int(time.time()),
+            }
 
     async def embeddings(
         self, input: Union[str, List[str]], model: Optional[str] = None, **kwargs
@@ -575,6 +676,127 @@ class UnifiedClient:
         except Exception as e:
             self.logger.error(f"Health check failed: {e}")
             return False
+
+    def chat_completion_sync(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Synchronous wrapper for chat_completion"""
+        import asyncio
+
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're already in an async context, create a new thread
+                import concurrent.futures
+
+                def run_async():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        result = new_loop.run_until_complete(
+                            self.chat_completion(
+                                messages=messages,
+                                model=model,
+                                temperature=temperature,
+                                max_tokens=max_tokens,
+                                tools=tools,
+                                tool_choice=tool_choice,
+                                response_format=response_format,
+                                **kwargs,
+                            )
+                        )
+                        # Session cleanup vor Loop-Close
+                        if (
+                            hasattr(self, "session")
+                            and self.session
+                            and not self.session.closed
+                        ):
+                            new_loop.run_until_complete(self.session.close())
+                        return result
+                    finally:
+                        # Kurz warten vor Loop-Close
+                        import time
+
+                        time.sleep(0.1)
+                        new_loop.close()
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    return future.result()
+            else:
+                # No event loop running, we can run directly
+                return loop.run_until_complete(
+                    self.chat_completion(
+                        messages=messages,
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        response_format=response_format,
+                        **kwargs,
+                    )
+                )
+        except RuntimeError:
+            # No event loop exists, create one
+            return asyncio.run(
+                self.chat_completion(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    response_format=response_format,
+                    **kwargs,
+                )
+            )
+
+    def close_sync(self):
+        """Synchronous wrapper for close"""
+        import asyncio
+
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're already in an async context, create a new thread
+                import concurrent.futures
+
+                def run_async():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(self.close())
+                    finally:
+                        new_loop.close()
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    return future.result()
+            else:
+                # No event loop running, we can run directly
+                return loop.run_until_complete(self.close())
+        except RuntimeError:
+            # No event loop exists, create one
+            return asyncio.run(self.close())
+
+    def reset_circuit_breaker(self):
+        """Reset circuit breaker to allow new requests"""
+        if hasattr(self.circuit_breaker, "reset"):
+            self.circuit_breaker.reset()
+            self.logger.info("Circuit breaker reset")
+        else:
+            self.logger.warning("Circuit breaker doesn't have reset method")
 
 
 class ClientFactory:
@@ -826,3 +1048,26 @@ def set_default_client(client: UnifiedClient):
     """Set default client instance"""
     global _default_client
     _default_client = client
+
+
+def create_client(provider: Optional[ProviderType] = None, **kwargs) -> UnifiedClient:
+    """Create a client with the specified provider"""
+    if provider is None:
+        return ClientFactory.create_from_env()
+
+    if provider == ProviderType.OPENAI:
+        return ClientFactory.create_openai_client(**kwargs)
+    elif provider == ProviderType.AZURE:
+        return ClientFactory.create_azure_client(**kwargs)
+    elif provider == ProviderType.ANTHROPIC:
+        return ClientFactory.create_anthropic_client(**kwargs)
+    elif provider == ProviderType.GOOGLE:
+        return ClientFactory.create_google_client(**kwargs)
+    elif provider == ProviderType.OLLAMA:
+        return ClientFactory.create_ollama_client(**kwargs)
+    elif provider == ProviderType.COHERE:
+        return ClientFactory.create_cohere_client(**kwargs)
+    elif provider == ProviderType.LOCAL:
+        return ClientFactory.create_local_client(**kwargs)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")

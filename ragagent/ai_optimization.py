@@ -19,7 +19,7 @@ import pickle
 import redis
 from enum import Enum
 
-from .models import Chunk, ProcessingRequest, ProcessingResponse
+from .models import Chunk, ProcessingRequest, ProcessingResponse, DocumentType
 from .config import get_config
 from .utils import CacheManager
 
@@ -604,6 +604,7 @@ class ChunkingOptimizer:
                     id=f"fixed_{i // chunk_size}",
                     text=chunk_text,
                     token_count=len(chunk_text.split()),
+                    document_type=DocumentType.TXT,
                 )
             )
 
@@ -615,7 +616,14 @@ class ChunkingOptimizer:
         chunks = []
 
         if len(sentences) < 2:
-            return [Chunk(id="semantic_0", text=text, token_count=len(text.split()))]
+            return [
+                Chunk(
+                    id="semantic_0",
+                    text=text,
+                    token_count=len(text.split()),
+                    document_type=DocumentType.TXT,
+                )
+            ]
 
         # Vectorize sentences
         from sklearn.feature_extraction.text import TfidfVectorizer
@@ -648,6 +656,7 @@ class ChunkingOptimizer:
                                 id=f"semantic_{cluster_id}",
                                 text=chunk_text,
                                 token_count=len(chunk_text.split()),
+                                document_type=DocumentType.TXT,
                             )
                         )
             else:
@@ -682,6 +691,7 @@ class ChunkingOptimizer:
                             id=f"sentence_{len(chunks)}",
                             text=current_chunk.strip(),
                             token_count=current_tokens,
+                            document_type=DocumentType.TXT,
                         )
                     )
                     current_chunk = sentence
@@ -696,6 +706,7 @@ class ChunkingOptimizer:
                     id=f"sentence_{len(chunks)}",
                     text=current_chunk.strip(),
                     token_count=current_tokens,
+                    document_type=DocumentType.TXT,
                 )
             )
 
@@ -713,6 +724,7 @@ class ChunkingOptimizer:
                         id=f"paragraph_{i}",
                         text=paragraph.strip(),
                         token_count=len(paragraph.split()),
+                        document_type=DocumentType.TXT,
                     )
                 )
 
@@ -733,6 +745,7 @@ class ChunkingOptimizer:
                     id=f"overlap_{i}",
                     text=chunk_text,
                     token_count=len(chunk_text.split()),
+                    document_type=DocumentType.TXT,
                 )
             )
 
@@ -1037,8 +1050,8 @@ class NavigationOptimizer:
 
             # Find related chunks (simplified)
             related_chunks = self._find_related_chunks(chunks, chunk_id, question)
-            for related_id in related_chunks[:2]:  # Limit branching
-                dfs(related_id, depth + 1)
+            for related_chunk in related_chunks[:2]:  # Limit branching
+                dfs(related_chunk["id"], depth + 1)
 
         # Start from most relevant chunk
         start_chunk = self._find_most_relevant_chunk(chunks, question)
@@ -1079,11 +1092,11 @@ class NavigationOptimizer:
 
                 # Find related chunks
                 related_chunks = self._find_related_chunks(chunks, chunk_id, question)
-                for related_id in related_chunks:
-                    if related_id not in visited:
-                        visited.add(related_id)
-                        selected_chunks.append(related_id)
-                        queue.append(related_id)
+                for related_chunk in related_chunks:
+                    if related_chunk["id"] not in visited:
+                        visited.add(related_chunk["id"])
+                        selected_chunks.append(related_chunk["id"])
+                        queue.append(related_chunk["id"])
 
             current_depth += 1
 
@@ -1241,7 +1254,7 @@ class NavigationOptimizer:
         visited.update(best_chunks["visited_chunks"])
 
         # Phase 2: Breadth-first for exploration
-        remaining_chunks = [chunk for chunk in chunks if chunk["id"] not in visited]
+        remaining_chunks = [chunk for chunk in chunks if chunk.id not in visited]
         if remaining_chunks:
             breadth_config = NavigationConfig(
                 strategy=NavigationStrategy.BREADTH_FIRST,
@@ -1429,9 +1442,25 @@ class AIOptimizationManager:
                 "timestamp": datetime.now().isoformat(),
             }
 
+            # Convert enums to strings before JSON serialization
+            def make_json_serializable(obj):
+                """Convert enums and other non-serializable objects to strings"""
+                if isinstance(obj, dict):
+                    return {k: make_json_serializable(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [make_json_serializable(item) for item in obj]
+                elif isinstance(obj, Enum):
+                    return obj.value
+                elif hasattr(obj, "__dict__"):
+                    return make_json_serializable(obj.__dict__)
+                else:
+                    return obj
+
+            serializable_result = make_json_serializable(optimization_result)
+
             # Cache result
             self.redis.setex(
-                cache_key, 3600, json.dumps(optimization_result)
+                cache_key, 3600, json.dumps(serializable_result)
             )  # 1 hour TTL
 
             self.logger.info(
