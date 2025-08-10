@@ -593,5 +593,40 @@
       "max_parallel_requests": 3
     },
     "migration_log": []
+  },
+  {
+    "version": "v1.0.0-test-20250810_135527",
+    "metadata": {
+      "version": "v1.0.0-test-20250810_135527",
+      "created_at": "2025-08-10T13:55:27",
+      "created_by": "test",
+      "description": "Testversion",
+      "is_active": true,
+      "is_current": true,
+      "hash": "60f433d881318f12",
+      "parent_version": null,
+      "tags": []
+    },
+    "config_data": {
+      "document_processing": {
+        "max_chunk_size": 2000,
+        "min_chunk_size": 100,
+        "overlap_tokens": 100,
+        "max_initial_chunks": 20,
+        "max_navigation_depth": 3
+      },
+      "agent": {
+        "model_name": "qwen3:latest",
+        "base_url": "http://localhost:11434",
+        "api_key": "dummy-key",
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "timeout": 30,
+        "format": null
+      },
+      "enable_verification": true,
+      "max_parallel_requests": 3
+    },
+    "migration_log": []
   }
 ]

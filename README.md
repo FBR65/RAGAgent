@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Code Style](https://img.shields.io/badge/Code-Black-black.svg)](https://black.readthedocs.io)
 
-Ein fortschrittliches Retrieval Augmented Generation (RAG) System mit KI-Agenten für intelligente Dokumentenverarbeitung und Antwortgenerierung.
+Ein fortschrittliches Retrieval Augmented Generation (RAG) System mit spezialisierten KI-Agenten für intelligente Dokumentenverarbeitung und präzise Antwortgenerierung.
 
 ## Quick Start
 
@@ -41,127 +41,141 @@ python start_dev.py
 
 ## Übersicht
 
-Das Agentic RAG System revolutioniert die traditionelle RAG-Architektur durch den Einsatz von spezialisierten KI-Agenten, die Dokumente auf menschenähnliche Weise navigieren und analysieren. Anstatt statisches Chunking zu verwenden, passt das System dynamisch an den Kontext an und liefert präzise, gut zitierte Antworten.
+Das Agentic RAG System implementiert eine fortschrittliche Architektur mit spezialisierten KI-Agenten für die intelligente Verarbeitung von Dokumenten. Das System kombiniert Retrieval-Augmented Generation mit adaptiven Navigationsstrategien, um präzise und gut zitierte Antworten zu generieren.
 
-### Kerninnovationen
+### Kernkomponenten
 
-- **Intelligente Agenten**: Spezialisierte Agenten für verschiedene Aufgaben (DeepDiver, Synthesizer, Judge)
-- **Adaptive Verarbeitung**: Dynamisches Chunking und Navigationsstrategien
-- **Hybrid-Suche**: Kombination aus Vektor- und Volltextsuche
-- **Robustheit**: Umfassende Fehlerbehandlung und Recovery-Mechanismen
-- **Skalierbarkeit**: Verteilte Architektur für hohe Lasten
-- **Monitoring**: Detaillierte Logging und Performance-Tracking
-- **Flexibilität**: Konfigurierbar für verschiedene Use Cases und Domänen
+- **Spezialisierte Agenten**: Domain-spezifische KI-Agenten für Dokumentenanalyse und Antwortgenerierung
+- **Adaptive Verarbeitung**: Dynamische Chunking-Strategien und kontextsensitive Navigation
+- **Hybrid-Suche**: Integration von Vektor- und Volltextsuche für optimale Ergebnisse
+- **Robustes Error Handling**: Umfassende Fehlerbehandlung mit Timeout, Retry und Circuit Breaker Mechanismen
+- **Skalierbare Architektur**: Verteilte Verarbeitung für hohe Lasten und gleichzeitige Anfragen
+- **Detailliertes Monitoring**: Strukturiertes Logging und Performance-Tracking
+- **Flexible Konfiguration**: Anpassbar für verschiedene Use Cases und Fachdomänen
 
-## Features
+## Funktionen
 
 ### Kernfunktionen
-- **Dokumentenverarbeitung**: Unterstützung für PDF, DOCX, TXT, Markdown, CSV
-- **Multi-Provider**: OpenAI, Ollama, Anthropic und weitere KI-Provider
-- **Batch-Verarbeitung**: Effiziente Verarbeitung mehrerer Anfragen
-- **Konfigurationsversionierung**: Vollständige Versionierung und Rollback-Möglichkeiten
-- **OCR-Unterstützung**: Texterkennung für gescannte Dokumente
+- **Dokumentenverarbeitung**: Umfassende Unterstützung für PDF, DOCX, TXT, Markdown und CSV Formate
+- **Multi-Provider Integration**: Nahtlose Integration von OpenAI, Ollama, Anthropic und weiteren KI-Providern
+- **Batch-Verarbeitung**: Effiziente gleichzeitige Verarbeitung mehrerer Anfragen
+- **Konfigurationsversionierung**: Vollständige Versionierung mit Rollback-Möglichkeiten und Metadaten-Management
+- **OCR-Unterstützung**: Integrierte Texterkennung für gescannte Dokumente und Bilder
 
-### Erweiterte Features
-- **Hybrid RAG**: Kombinierte Vektor- und Volltextsuche
-- **Spezialisierte Agenten**: Domain-spezifische Agenten für juristische, medizinische und technische Dokumente
-- **KI-Optimierung**: Adaptive Systeme für bessere Performance
-- **Lernfähiges System**: Anpassung an Benutzerpräferenzen
-- **Resilience Management**: Timeout, Retry, Circuit Breaker, Rate Limiting
+### Erweiterte Funktionen
+- **Hybrid RAG System**: Kombinierte Vektor- und Volltextsuche für verbesserte Relevanz
+- **Spezialisierte Agenten**: Domain-spezifische Agenten für juristische, medizinische und technische Dokumentenanalyse
+- **KI-Optimierung**: Adaptive Systeme für kontinuierliche Performance-Verbesserung
+- **Lernfähiges System**: Anpassung an Benutzerpräferenzen und Nutzungsmuster
+- **Resilience Management**: Umfassendes Fehlermanagement mit Timeout, Retry, Circuit Breaker und Rate Limiting
 
 ## Architektur
 
-```mermaid
-graph TB
-    subgraph "Benutzeroberfläche"
-        A[CLI] --> D[API Server]
-        B[Web Interface] --> D
-        C[REST API] --> D
-    end
-    
-    subgraph "API Layer"
-        D --> E[AgenticRAGPipeline]
-        D --> F[Unified Client]
-        D --> G[Resilience Manager]
-        D --> H[Version Manager]
-    end
-    
-    subgraph "Kernkomponenten"
-        E --> I[DeepDiver Agent]
-        E --> J[Answer Synthesizer]
-        E --> K[Judge Agent]
-        E --> L[Parser Registry]
-    end
-    
-    subgraph "Dokumentenverarbeitung"
-        L --> M[PDF Parser]
-        L --> N[DOCX Parser]
-        L --> O[Markdown Parser]
-        L --> P[CSV Parser]
-        L --> Q[OCR Processor]
-    end
-    
-    subgraph "KI-Provider"
-        F --> R[OpenAI]
-        F --> S[Ollama]
-        F --> T[Anthropic]
-        F --> U[Andere Provider]
-    end
-    
-    subgraph "Erweiterte Features"
-        V[Hybrid RAG] --> E
-        W[Specialized Agents] --> E
-        X[AI Optimization] --> E
-        Y[Learning System] --> E
-    end
-    
-    subgraph "Infrastruktur"
-        G --> Z[Timeout Handler]
-        G --> AA[Retry Mechanisms]
-        G --> AB[Circuit Breaker]
-        G --> AC[Rate Limiter]
-        H --> AD[Version Control]
-        H --> AE[Configuration Management]
-    end
-```
+Das System basiert auf einer modularen, erweiterbaren Architektur mit klar getrennten Verantwortlichkeiten.
+
+### Systemarchitektur
+
+![Systemarchitektur](images/mermaid_diagram_1754675421128.png)
+
+### Architekturkomponenten
+
+#### Benutzeroberflächenschicht
+- **Command Line Interface (CLI)**: Interaktive Kommandozeilen-Tools
+- **Web Interface**: Benutzerfreundliche Gradio-Oberfläche
+- **REST API**: Standardisierte HTTP-Schnittstelle für Integrationen
+
+#### API-Schicht
+- **AgenticRAGPipeline**: Hauptkoordination und Datenfluss-Management
+- **Unified Client**: Standardisierter Client für verschiedene KI-Provider
+- **Resilience Manager**: Umfassendes Fehlermanagement und Recovery-Mechanismen
+- **Version Manager**: Konfigurationsversionierung und Rollback-Funktionalität
+
+#### Kernkomponenten
+- **DeepDiver Agent**: Intelligente Dokumentennavigation und Relevanzanalyse
+- **Answer Synthesizer**: Strukturierte Antwortgenerierung mit Zitaten
+- **Judge Agent**: Antwortverifikation und Qualitätsbewertung
+- **Parser Registry**: Zentrale Verwaltung von Dokumenten-Parsern
+
+#### Dokumentenverarbeitung
+- **PDF Parser**: Verarbeitung von PDF-Dokumenten mit OCR-Unterstützung
+- **DOCX Parser**: Microsoft Word Dokumentenverarbeitung
+- **Markdown Parser**: Markdown-Dateien mit Formatierungserhalt
+- **CSV Parser**: Tabellarische Datenverarbeitung
+- **OCR Processor**: Texterkennung für gescannte Dokumente
+
+#### KI-Provider Integration
+- **OpenAI**: Nahtlose Integration mit OpenAI APIs
+- **Ollama**: Lokale Modellunterstützung
+- **Anthropic**: Claude Modelle Integration
+- **Weitere Provider**: Erweiterbar für zusätzliche KI-Dienste
+
+#### Erweiterte Funktionen
+- **Hybrid RAG**: Kombinierte Suchstrategien für optimale Ergebnisse
+- **Specialized Agents**: Domain-spezifische Agenten für Fachbereiche
+- **AI Optimization**: Adaptive Systeme für Performance-Optimierung
+- **Learning System**: Kontinuierliches Lernen und Anpassung
+
+#### Infrastrukturkomponenten
+- **Timeout Handler**: Verwaltung von Zeitlimits und Timeouts
+- **Retry Mechanisms**: Exponentielles Backoff und Wiederholungsstrategien
+- **Circuit Breaker**: Schutz vor Systemüberlastung und Ausfällen
+- **Rate Limiter**: Begrenzung von Anfrageraten zur Ressourcenschonung
+- **Version Control**: Vollständige Konfigurationsversionierung
+- **Configuration Management**: Zentrales Konfigurationsmanagement
 
 ## Installation
 
-### Voraussetzungen
+### Systemvoraussetzungen
 - Python 3.10 oder höher
-- uv (empfohlener Paketmanager)
-- Optional: Ollama für lokale Modelle
+- uv (empfohlener Paketmanager für optimale Performance)
+- Optional: Ollama für lokale Modellunterstützung
+- Optional: GPU für beschleunigte Inferenz
 
-### Installation mit uv
+### Installation mit uv (Empfohlen)
 ```bash
-# Klonen des Repositories
+# Repository klonen
 git clone https://github.com/ihres/ragagent.git
 cd ragagent
 
-# Erstellen der virtuellen Umgebung
+ Virtuelle Umgebung erstellen
 uv venv
 
-# Aktivieren der Umgebung (Windows)
+# Umgebung aktivieren (Windows)
 .venv\Scripts\activate
 
-# Installieren der Abhängigkeiten
+# Abhängigkeiten installieren
 uv sync
 ```
 
 ### Installation mit pip
 ```bash
-# Klonen des Repositories
+# Repository klonen
 git clone https://github.com/ihres/ragagent.git
 cd ragagent
 
-# Erstellen der virtuellen Umgebung
+# Virtuelle Umgebung erstellen
 python -m venv .venv
 
-# Aktivieren der Umgebung (Windows)
+# Umgebung aktivieren (Windows)
 .venv\Scripts\activate
 
-# Installieren der Abhängigkeiten
+# Abhängigkeiten installieren
 pip install -e .
+```
+
+### Entwicklungsumgebung
+```bash
+# Entwicklungspakete installieren
+pip install -e ".[dev]"
+
+# Code formatieren
+black ragagent/
+
+# Linting durchführen
+flake8 ragagent/
+
+# Typ-Prüfung
+mypy ragagent/
 ```
 
 ## Schnellstart
@@ -192,7 +206,7 @@ else:
     print(f"Fehler: {result.error.message}")
 ```
 
-### CLI-Nutzung
+### Kommandozeilennutzung
 
 ```bash
 # Einfache Anfrage
@@ -214,7 +228,7 @@ ragagent activate-version v1.0.0
 
 ### API-Nutzung
 
-Starten des API-Servers:
+API-Server starten:
 ```bash
 ragagent serve --host 0.0.0.0 --port 8000
 ```
@@ -228,6 +242,37 @@ curl -X POST "http://localhost:8000/process" \
        "document_path": "document.txt"
      }'
 ```
+
+### Systemstart
+
+#### Einfacher Start (Alle Services)
+```bash
+# Windows (PowerShell)
+.\start_ragagent.ps1
+
+# Windows (Batch)
+start_ragagent.bat
+
+# Linux/Mac (Python)
+python start_ragagent.py
+```
+
+#### Einzelne Services
+```bash
+# Nur API starten (Port 8000)
+python start_api.py
+
+# Nur Frontend starten (Port 7860)
+python start_frontend.py
+
+# Entwicklungsmodus mit Hot-Reload
+python start_dev.py
+```
+
+#### Verfügbare URLs
+- **API Server**: http://localhost:8000
+- **API Dokumentation**: http://localhost:8000/docs
+- **Gradio Frontend**: http://localhost:7860
 
 ## Konfiguration
 
@@ -349,47 +394,47 @@ RAG_LOG_LEVEL=INFO
 
 ## Dokumentation
 
-### Architekturübersicht
+### Systemarchitektur
 
-Das Agentic RAG System besteht aus mehreren Kernkomponenten:
+Das Agentic RAG System besteht aus mehreren Kernkomponenten mit klar definierten Verantwortlichkeiten.
 
 #### 1. AgenticRAGPipeline
-Die Hauptpipeline koordiniert alle Komponenten und verwaltet den Datenfluss.
+Die Hauptpipeline koordiniert alle Komponenten und verwaltet den Datenfluss zwischen den verschiedenen Verarbeitungsschritten.
 
 #### 2. Spezialisierte Agenten
-- **DeepDiver Agent**: Navigiert durch Dokumente und findet relevante Abschnitte
-- **Answer Synthesizer**: Generiert strukturierte Antworten mit Zitaten
-- **Judge Agent**: Verifiziert die Genauigkeit der Antworten
+- **DeepDiver Agent**: Intelligente Dokumentennavigation durch iterative Analyse und Relevanzbewertung
+- **Answer Synthesizer**: Generierung strukturierter Antworten mit präzisen Zitaten und Quellenangaben
+- **Judge Agent**: Verifikation der Antwortgenauigkeit und Bewertung der Vertrauenswürdigkeit
 
 #### 3. Parser-System
-Unterstützt verschiedene Dokumentformate:
-- PDF (einschließlich OCR für gescannte Dokumente)
-- DOCX (Microsoft Word)
-- TXT (Plain Text)
-- Markdown
-- CSV
+Umfassende Unterstützung verschiedener Dokumentformate:
+- **PDF**: Vollständige Verarbeitung mit OCR-Unterstützung für gescannte Dokumente
+- **DOCX**: Microsoft Word Dokumentenverarbeitung mit Formatierungserhalt
+- **TXT**: Plain Text Verarbeitung mit Zeichensatz-Erkennung
+- **Markdown**: Markdown-Dateien mit Formatierung und Struktur
+- **CSV**: Tabellarische Datenverarbeitung mit Typinferenz
 
 #### 4. Unified Client
-Standardisierter Client für verschiedene KI-Provider mit einheitlicher API.
+Standardisierter Client für verschiedene KI-Provider mit einheitlicher API und konsistentem Fehlerhandling.
 
 #### 5. Resilience Manager
-Bietet umfassende Fehlerbehandlung:
-- Timeout-Management
-- Retry-Mechanismen mit exponentiellem Backoff
-- Circuit Breaker Pattern
-- Rate Limiting
+Umfassendes Fehlermanagement mit folgenden Mechanismen:
+- **Timeout-Management**: Konfigurierbare Zeitlimits für verschiedene Operationen
+- **Retry-Mechanismen**: Exponentielles Backoff mit Jitter für robuste Wiederholungsstrategien
+- **Circuit Breaker Pattern**: Schutz vor Systemüberlastung und Ausfällen
+- **Rate Limiting**: Anfratebegrenzung zur Ressourcenschonung
 
 #### 6. Version Manager
-Verwaltet Konfigurationsversionen mit:
-- Vollständige Versionierung
-- Rollback-Möglichkeiten
-- Metadaten-Verwaltung
-- Integritätsprüfung
+Verwaltung von Konfigurationsversionen mit folgenden Funktionen:
+- **Vollständige Versionierung**: Alle Konfigurationsänderungen werden versioniert
+- **Rollback-Möglichkeiten**: Einfaches Zurückkehren zu früheren Versionen
+- **Metadaten-Verwaltung**: Detaillierte Informationen zu jeder Version
+- **Integritätsprüfung**: Automatische Überprüfung der Konfigurationsintegrität
 
-### Erweiterte Features
+### Erweiterte Funktionen
 
-#### Hybrid RAG
-Kombiniert traditionelle Vektorsuche mit Volltextsuche für bessere Ergebnisse.
+#### Hybrid RAG System
+Kombiniert traditionelle Vektorsuche mit Volltextsuche für optimierte Suchergebnisse.
 
 ```python
 from ragagent.hybrid_rag import HybridRAGSystem
@@ -404,7 +449,7 @@ result = hybrid_rag.search_and_answer(
 ```
 
 #### Spezialisierte Agenten
-Domain-spezifische Agenten für verschiedene Fachbereiche.
+Domain-spezifische Agenten für verschiedene Fachbereiche mit spezialisiertem Wissen.
 
 ```python
 from ragagent.specialized_agents import LegalAgent
@@ -414,7 +459,7 @@ result = legal_agent.analyze_document("legal_document.pdf")
 ```
 
 #### KI-Optimierung
-Adaptive Systeme für kontinuierliche Verbesserung.
+Adaptive Systeme für kontinuierliche Performance-Verbesserung und Lernfähigkeit.
 
 ```python
 from ragagent.ai_optimization import AIOptimizationManager
@@ -423,8 +468,9 @@ optimizer = AIOptimizationManager()
 optimization = optimizer.optimize_query_processing("Was ist KI?")
 ```
 
+### Systemtests
 
-### Real-Life-Test
+#### Real-Life-Test
 ```bash
 # Kompletter Systemtest
 python real_life_test.py
@@ -438,13 +484,13 @@ cat real_life_test_report.json
 ### Entwicklungsumgebung einrichten
 
 ```bash
-# Entwicklungsversion installieren
+# Entwicklungspakete installieren
 pip install -e ".[dev]"
 
 # Code formatieren
 black ragagent/
 
-# Linting
+# Linting durchführen
 flake8 ragagent/
 
 # Typ-Prüfung
@@ -462,8 +508,6 @@ ragagent/
 ├── pipeline.py                 # Haupt-Pipeline
 ├── models.py                   # Datenmodelle
 ├── frontend.py                 # Web-Interface
-├── ollama_client.py            # Ollama Client
-├── openai_client.py            # OpenAI Client
 ├── unified_client.py           # Unified Client Interface
 ├── enhanced_timeout_retry.py   # Resilience Management
 ├── config_versioning.py        # Version Management
@@ -489,7 +533,10 @@ ragagent/
 └── utils/                      # Hilfsmodule
     ├── __init__.py
     ├── logging.py
-    └── cache.py
+    ├── cache.py
+    ├── pool.py
+    ├── retry.py
+    └── validation.py
 ```
 
 ## Deployment
@@ -552,10 +599,11 @@ spec:
 
 ### Skalierbarkeit
 
-- **Horizontales Scaling**: Unterstützung durch Kubernetes
-- **Verteilte Verarbeitung**: Mehrere Worker-Knoten
-- **Load Balancing**: Automatische Verteilung der Last
-- **Caching**: lokaler Cache für häufige Anfragen
+- **Horizontales Scaling**: Unterstützung durch Kubernetes und Docker Swarm
+- **Verteilte Verarbeitung**: Mehrere Worker-Knoten mit Lastverteilung
+- **Load Balancing**: Automatische Verteilung der Last über mehrere Instanzen
+- **Caching**: Lokaler Cache für häufige Anfragen mit Redis-Unterstützung
+- **Containerisierung**: Vollständige Docker-Unterstützung für einfaches Deployment
 
 
 ## Lizenz
@@ -568,7 +616,7 @@ Dieses Projekt ist unter der AGPLv3-Lizenz lizenziert - siehe die [LICENSE](LICE
 - Die Nutzung in kommerziellen Produkten ist möglich, erfordert aber die Einhaltung der Lizenzbedingungen
 - Weitere Informationen finden Sie in der LICENSE-Datei
 
-## Anerkennungen
+## Danksagung
 
 - [FastAPI](https://fastapi.tiangolo.com/) für das hervorragende Web-Framework
 - [Pydantic](https://pydantic-docs.helpmanual.io/) für Datenvalidierung
@@ -579,4 +627,4 @@ Dieses Projekt ist unter der AGPLv3-Lizenz lizenziert - siehe die [LICENSE](LICE
 
 ---
 
-**Made with ❤️ by FBR65**
+**Entwickelt von FBR65**

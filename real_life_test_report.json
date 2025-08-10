@@ -9,8 +9,8 @@
     {
       "test": "basic_functionality",
       "status": "success",
-      "processing_time": 0.28298115730285645,
-      "confidence": 0.0,
+      "processing_time": 34.892746686935425,
+      "confidence": 0.8,
       "citations": 1
     },
     {
@@ -56,7 +56,7 @@
     {
       "test": "version_manager",
       "status": "success",
-      "version_count": 10
+      "version_count": 18
     },
     {
       "test": "ocr_support",
@@ -83,7 +83,22 @@
       "test": "ai_optimization",
       "status": "success",
       "optimization_insights": {
-        "message": "No optimization history found"
+        "total_optimizations": 3,
+        "recent_optimizations": 3,
+        "most_used_chunking_strategy": "fixed_size",
+        "most_used_navigation_strategy": "best_first",
+        "average_performance": {
+          "chunking": 0.9700000000000001,
+          "navigation": 0.8099999999999999
+        },
+        "strategy_distribution": {
+          "chunking": {
+            "fixed_size": 3
+          },
+          "navigation": {
+            "best_first": 3
+          }
+        }
       }
     },
     {
@@ -92,7 +107,7 @@
       "total_requests": 3,
       "successful": 3,
       "failed": 0,
-      "processing_time": 0.22713947296142578
+      "processing_time": 50.615686655044556
     }
   ],
   "system_info": {

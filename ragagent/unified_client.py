@@ -188,6 +188,8 @@ class UnifiedClient:
 
         # Session for HTTP requests
         self.session: Optional[aiohttp.ClientSession] = None
+        # Thread-safe session management
+        self._session_lock = asyncio.Lock()
 
         # Provider-specific configurations
         self._setup_provider_config()
@@ -268,24 +270,47 @@ class UnifiedClient:
 
     async def _ensure_session(self):
         """Ensure HTTP session exists"""
-        if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(
-                total=self.config.request_timeout,
-                connect=self.config.connect_timeout,
-                sock_read=self.config.read_timeout,
+        async with self._session_lock:
+            self.logger.debug(
+                f"Ensuring session exists. Current session: {self.session}"
             )
+            if self.session is None:
+                self.logger.debug("Creating new session (None)")
+            elif self.session.closed:
+                self.logger.debug("Creating new session (closed)")
+            else:
+                self.logger.debug("Session already exists and is open")
 
-            self.session = aiohttp.ClientSession(
-                timeout=timeout,
-                headers=self.config.headers,
-                trust_env=True,  # Use proxy from environment
-            )
+            if self.session is None or self.session.closed:
+                timeout = aiohttp.ClientTimeout(
+                    total=self.config.request_timeout,
+                    connect=self.config.connect_timeout,
+                    sock_read=self.config.read_timeout,
+                )
+
+                self.session = aiohttp.ClientSession(
+                    timeout=timeout,
+                    headers=self.config.headers,
+                    trust_env=True,  # Use proxy from environment
+                )
+                self.logger.debug(f"New session created: {self.session}")
 
     async def close(self):
         """Close HTTP session"""
-        if self.session and not self.session.closed:
-            await self.session.close()
-            self.logger.debug("HTTP session closed")
+        async with self._session_lock:
+            self.logger.debug(
+                f"Attempting to close session. Session exists: {bool(self.session)}"
+            )
+            if self.session and not self.session.closed:
+                self.logger.debug("Closing HTTP session")
+                try:
+                    await self.session.close()
+                    self.logger.debug("HTTP session closed successfully")
+                except Exception as e:
+                    self.logger.error(f"Error closing session: {e}")
+                    raise
+            else:
+                self.logger.debug("Session already closed or None")
 
     def __del__(self):
         """Cleanup method - deaktiviert um Event Loop Errors zu vermeiden"""
@@ -301,38 +326,58 @@ class UnifiedClient:
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncGenerator[Dict[str, Any], None]]:
         """Make HTTP request with error handling"""
-        await self._ensure_session()
+        self.logger.debug(f"Making request to {endpoint} with method {method}")
 
-        url = f"{self.config.base_url}{endpoint}"
+        try:
+            await self._ensure_session()
+            self.logger.debug("Session ensured successfully")
 
-        # Prepare request data
-        request_data = json.dumps(data) if data else None
+            url = f"{self.config.base_url}{endpoint}"
+            self.logger.debug(f"Full URL: {url}")
 
-        # Rate limiting
-        await self.rate_limiter.wait_if_needed()
+            # Prepare request data
+            request_data = json.dumps(data) if data else None
+            self.logger.debug(
+                f"Request data: {request_data[:200] if request_data else 'None'}..."
+            )
 
-        # Define the request function that will be retried
-        async def circuit_protected_request():
-            async def actual_request():
-                self.logger.debug(f"Making request to {url} with method {method}")
-                self.logger.debug(
-                    f"Request data: {request_data[:200] if request_data else 'None'}..."
-                )
-                return await self._execute_request(
-                    method, url, request_data, stream, **kwargs
-                )
+            # Rate limiting
+            self.logger.debug("Waiting for rate limiter")
+            await self.rate_limiter.wait_if_needed()
+            self.logger.debug("Rate limiter passed")
 
-            # DIREKTER AUFRUF OHNE CIRCUIT BREAKER
-            return await actual_request()
+            # Define the request function that will be retried
+            async def circuit_protected_request():
+                async def actual_request():
+                    self.logger.debug(f"Executing actual request to {url}")
+                    return await self._execute_request(
+                        method, url, request_data, stream, **kwargs
+                    )
 
-        # Use retry handler
-        return await self.retry_handler.retry(circuit_protected_request, **kwargs)
+                # DIREKTER AUFRUF OHNE CIRCUIT BREAKER
+                return await actual_request()
+
+            # Use retry handler
+            self.logger.debug("Starting retry handler")
+            result = await self.retry_handler.retry(circuit_protected_request, **kwargs)
+            self.logger.debug("Request completed successfully")
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Error in _make_request: {e}")
+            raise
 
     async def _execute_request(
         self, method: str, url: str, data: Optional[str], stream: bool, **kwargs
     ) -> Union[Dict[str, Any], AsyncGenerator[Dict[str, Any], None]]:
         """Execute HTTP request"""
+        self.logger.debug(f"Executing HTTP request: {method} {url}")
+        self.logger.debug(
+            f"Session status before request: {self.session.closed if self.session else 'None'}"
+        )
+
         try:
+            self.logger.debug("Making HTTP request with aiohttp")
             async with self.session.request(
                 method,
                 url,
@@ -341,17 +386,27 @@ class UnifiedClient:
                 ssl=self.config.verify_ssl,
                 **kwargs,
             ) as response:
+                self.logger.debug(f"Response received: status={response.status}")
                 if stream:
+                    self.logger.debug("Processing stream response")
                     return self._stream_response(response)
                 else:
+                    self.logger.debug("Processing regular response")
                     return await self._handle_response(response)
 
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                f"Request timeout after {self.config.request_timeout} seconds: {e}"
+            )
             raise Exception(
                 f"Request timeout after {self.config.request_timeout} seconds"
             )
         except aiohttp.ClientError as e:
+            self.logger.error(f"HTTP request failed: {e}")
             raise Exception(f"HTTP request failed: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error in _execute_request: {e}")
+            raise
 
     async def _handle_response(
         self, response: aiohttp.ClientResponse
@@ -691,19 +746,38 @@ class UnifiedClient:
         """Synchronous wrapper for chat_completion"""
         import asyncio
 
+        # Logging für Debugging
+        self.logger.info(
+            f"Starting chat_completion_sync with provider: {self.config.provider}"
+        )
+        self.logger.debug(
+            f"Session status before: {self.session.closed if self.session else 'None'}"
+        )
+
         try:
             # Try to get the current event loop
             loop = asyncio.get_event_loop()
+            self.logger.debug(f"Current event loop status: running={loop.is_running()}")
+
             if loop.is_running():
                 # If we're already in an async context, create a new thread
                 import concurrent.futures
 
+                self.logger.debug("Creating new thread for async execution")
+
                 def run_async():
                     new_loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(new_loop)
+                    self.logger.debug(f"New event loop created: {new_loop}")
+
+                    # Erstelle eine komplett neue Client-Instanz für diesen Thread
                     try:
+                        # Erstelle eine neue Client-Instanz mit separater Session
+                        thread_client = UnifiedClient(self.config)
+
+                        # Führe die Anfrage mit dem neuen Client durch
                         result = new_loop.run_until_complete(
-                            self.chat_completion(
+                            thread_client.chat_completion(
                                 messages=messages,
                                 model=model,
                                 temperature=temperature,
@@ -714,26 +788,38 @@ class UnifiedClient:
                                 **kwargs,
                             )
                         )
-                        # Session cleanup vor Loop-Close
-                        if (
-                            hasattr(self, "session")
-                            and self.session
-                            and not self.session.closed
-                        ):
-                            new_loop.run_until_complete(self.session.close())
+                        self.logger.debug(
+                            "Async chat completion completed successfully"
+                        )
+
+                        # Cleanup des Thread-Clients
+                        try:
+                            new_loop.run_until_complete(thread_client.close())
+                            self.logger.debug("Thread client closed successfully")
+                        except Exception as e:
+                            self.logger.warning(f"Error closing thread client: {e}")
+
                         return result
+
+                    except Exception as e:
+                        self.logger.error(f"Error in async execution: {e}")
+                        raise
                     finally:
                         # Kurz warten vor Loop-Close
                         import time
 
                         time.sleep(0.1)
+                        self.logger.debug("Closing new event loop")
                         new_loop.close()
 
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(run_async)
-                    return future.result()
+                    result = future.result()
+                    self.logger.debug("Thread execution completed")
+                    return result
             else:
                 # No event loop running, we can run directly
+                self.logger.debug("Running directly on existing event loop")
                 return loop.run_until_complete(
                     self.chat_completion(
                         messages=messages,
@@ -746,49 +832,100 @@ class UnifiedClient:
                         **kwargs,
                     )
                 )
-        except RuntimeError:
+        except RuntimeError as e:
+            self.logger.debug(f"No event loop exists, creating new one: {e}")
             # No event loop exists, create one
-            return asyncio.run(
-                self.chat_completion(
-                    messages=messages,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    response_format=response_format,
-                    **kwargs,
-                )
-            )
+            # Verwende einen neuen Thread mit komplett separatem Client
+            import concurrent.futures
+            import time
+
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    # Erstelle einen komplett neuen Client für diesen Thread
+                    thread_client = UnifiedClient(self.config)
+                    return new_loop.run_until_complete(
+                        thread_client.chat_completion(
+                            messages=messages,
+                            model=model,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            tools=tools,
+                            tool_choice=tool_choice,
+                            response_format=response_format,
+                            **kwargs,
+                        )
+                    )
+                finally:
+                    # Cleanup
+                    try:
+                        if "thread_client" in locals():
+                            new_loop.run_until_complete(thread_client.close())
+                    except Exception as e:
+                        self.logger.warning(f"Error during thread cleanup: {e}")
+                    finally:
+                        new_loop.close()
+                        time.sleep(0.1)  # Kurze Pause vor dem Beenden
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+        except Exception as e:
+            self.logger.error(f"Unexpected error in chat_completion_sync: {e}")
+            raise
 
     def close_sync(self):
         """Synchronous wrapper for close"""
         import asyncio
 
+        self.logger.debug("Starting close_sync")
+        self.logger.debug(
+            f"Session status before close: {self.session.closed if self.session else 'None'}"
+        )
+
         try:
             # Try to get the current event loop
             loop = asyncio.get_event_loop()
+            self.logger.debug(f"Current event loop status: running={loop.is_running()}")
+
             if loop.is_running():
                 # If we're already in an async context, create a new thread
                 import concurrent.futures
 
+                self.logger.debug("Creating new thread for async close")
+
                 def run_async():
                     new_loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(new_loop)
+                    self.logger.debug(f"New event loop for close: {new_loop}")
                     try:
-                        return new_loop.run_until_complete(self.close())
+                        result = new_loop.run_until_complete(self.close())
+                        self.logger.debug("Async close completed successfully")
+                        return result
+                    except Exception as e:
+                        self.logger.error(f"Error in async close: {e}")
+                        raise
                     finally:
+                        self.logger.debug("Closing event loop from close_sync")
                         new_loop.close()
 
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(run_async)
-                    return future.result()
+                    result = future.result()
+                    self.logger.debug("Thread close completed")
+                    return result
             else:
                 # No event loop running, we can run directly
+                self.logger.debug("Running close directly on existing event loop")
                 return loop.run_until_complete(self.close())
-        except RuntimeError:
+        except RuntimeError as e:
+            self.logger.debug(f"No event loop exists, creating new one for close: {e}")
             # No event loop exists, create one
             return asyncio.run(self.close())
+        except Exception as e:
+            self.logger.error(f"Unexpected error in close_sync: {e}")
+            raise
 
     def reset_circuit_breaker(self):
         """Reset circuit breaker to allow new requests"""
